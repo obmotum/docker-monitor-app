@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Docker Container Monitor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Docker Container Monitor</h1>
+        <div class="status">
+            WebSocket: <span id="ws-status" class="disconnected">Disconnected</span>
+        </div>
+
+        <div class="info card">
+            <h2>Container Info</h2>
+            <p><strong>Name:</strong> <span id="container-name">N/A</span></p>
+            <p><strong>ID:</strong> <span id="container-id">N/A</span></p>
+            <p><strong>Image:</strong> <span id="container-image">N/A</span></p>
+            <p><strong>Status:</strong> <span id="container-status">N/A</span></p>
+        </div>
+
+        <div class="stats card">
+            <h2>Real-time Stats</h2>
+            <p><strong>CPU Usage:</strong> <span id="cpu-usage">--</span> %</p>
+            <p><strong>Memory Usage:</strong> <span id="mem-usage">--</span> / <span id="mem-limit">--</span> (<span id="mem-percent">--</span> %)</p>
+            <p><strong>Network I/O:</strong> <span id="net-io">-- Rx / -- Tx</span></p>
+             <p><strong>Disk I/O:</strong> <span id="disk-io">-- Read / -- Write</span></p>
+        </div>
+
+        <div class="actions card">
+            <h2>Actions</h2>
+            <button id="restart-btn" disabled>Restart Container</button>
+            <button id="upgrade-btn" disabled>Upgrade Container (latest)</button>
+        </div>
+
+         <div class="logs card">
+             <h2>Logs / Status</h2>
+             <pre id="log-output"></pre>
+         </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f7f6;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+h1, h2 {
+    color: #1a535c;
+    border-bottom: 2px solid #4ecdc4;
+    padding-bottom: 5px;
+    margin-top: 0;
+}
+
+.card {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.status {
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+#ws-status {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+#ws-status.connected {
+    background-color: #4caf50;
+    color: white;
+}
+#ws-status.disconnected {
+    background-color: #f44336;
+    color: white;
+}
+#ws-status.connecting {
+    background-color: #ff9800;
+    color: white;
+}
+
+.info p, .stats p {
+    margin: 8px 0;
+}
+
+.info span, .stats span {
+    font-weight: bold;
+    color: #ff6b6b; /* Highlight color for values */
+    min-width: 50px;
+    display: inline-block;
+}
+
+.actions button {
+    background-color: #4ecdc4;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    margin-right: 10px;
+    transition: background-color 0.2s ease;
+}
+
+.actions button:hover:not(:disabled) {
+    background-color: #1a535c;
+}
+
+.actions button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.logs {
+    margin-top: 20px;
+}
+
+#log-output {
+    background-color: #282c34; /* Dark background for logs */
+    color: #abb2bf; /* Light text for logs */
+    padding: 10px;
+    border-radius: 4px;
+    height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap; /* Wrap long lines */
+    word-wrap: break-word; /* Break words if needed */
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+}

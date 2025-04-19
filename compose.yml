@@ -1,0 +1,14 @@
+services:
+  docker-monitor:
+    build: .
+    container_name: docker_monitor_service
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000
+    environment:
+      # REQUIRED: Set the ID or name of the container you want to monitor
+      - TARGET_CONTAINER_ID=cf2426ac8873
+    volumes:
+      # Mount the Docker socket from the host into the container
+      # WARNING: This grants the container significant control over Docker on the host!
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
