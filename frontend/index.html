@@ -13,33 +13,57 @@
             WebSocket: <span id="ws-status" class="disconnected">Disconnected</span>
         </div>
 
-        <div class="info card">
-            <h2>Container Info</h2>
-            <p><strong>Name:</strong> <span id="container-name">N/A</span></p>
-            <p><strong>ID:</strong> <span id="container-id">N/A</span></p>
-            <p><strong>Image:</strong> <span id="container-image">N/A</span></p>
-            <p><strong>Status:</strong> <span id="container-status">N/A</span></p>
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" data-target="info-stats-view">Info & Stats</button>
+            <button class="tab-button" data-target="logs-view">Console Logs</button>
+            <button class="tab-button" data-target="actions-view">Actions</button>
         </div>
 
-        <div class="stats card">
-            <h2>Real-time Stats</h2>
-            <p><strong>CPU Usage:</strong> <span id="cpu-usage">--</span> %</p>
-            <p><strong>Memory Usage:</strong> <span id="mem-usage">--</span> / <span id="mem-limit">--</span> (<span id="mem-percent">--</span> %)</p>
-            <p><strong>Network I/O:</strong> <span id="net-io">-- Rx / -- Tx</span></p>
-             <p><strong>Disk I/O:</strong> <span id="disk-io">-- Read / -- Write</span></p>
+        <!-- Tab Content Areas -->
+        <div id="view-container">
+            <!-- Info & Stats View -->
+            <div id="info-stats-view" class="view active">
+                <div class="info card">
+                    <h2>Container Info</h2>
+                    <p><strong>Name:</strong> <span id="container-name">N/A</span></p>
+                    <p><strong>ID:</strong> <span id="container-id">N/A</span></p>
+                    <p><strong>Image:</strong> <span id="container-image">N/A</span></p>
+                    <p><strong>Status:</strong> <span id="container-status">N/A</span></p>
+                </div>
+
+                <div class="stats card">
+                    <h2>Real-time Stats</h2>
+                    <p><strong>CPU Usage:</strong> <span id="cpu-usage">--</span> %</p>
+                    <p><strong>Memory Usage:</strong> <span id="mem-usage">--</span> / <span id="mem-limit">--</span> (<span id="mem-percent">--</span> %)</p>
+                    <p><strong>Network I/O:</strong> <span id="net-io">-- Rx / -- Tx</span></p>
+                    <p><strong>Disk I/O:</strong> <span id="disk-io">-- Read / -- Write</span></p>
+                </div>
+            </div>
+
+            <!-- Logs View -->
+            <div id="logs-view" class="view">
+                 <div class="logs card">
+                     <h2>Container Logs <button id="clear-logs-btn">Clear</button></h2>
+                     <pre id="log-output"></pre>
+                 </div>
+            </div>
+
+             <!-- Actions View -->
+             <div id="actions-view" class="view">
+                <div class="actions card">
+                    <h2>Actions</h2>
+                    <button id="restart-btn" disabled>Restart Container</button>
+                    <button id="upgrade-btn" disabled>Upgrade Container (latest)</button>
+                 </div>
+                  <div class="status-log card">
+                     <h2>Status Messages</h2>
+                     <pre id="status-log-output"></pre>
+                 </div>
+             </div>
         </div>
 
-        <div class="actions card">
-            <h2>Actions</h2>
-            <button id="restart-btn" disabled>Restart Container</button>
-            <button id="upgrade-btn" disabled>Upgrade Container (latest)</button>
-        </div>
-
-         <div class="logs card">
-             <h2>Logs / Status</h2>
-             <pre id="log-output"></pre>
-         </div>
-    </div>
+    </div> <!-- End .container -->
 
     <script src="script.js"></script>
 </body>

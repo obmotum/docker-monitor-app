@@ -11,7 +11,7 @@ body {
     max-width: 800px;
     margin: 0 auto;
     background-color: #fff;
-    padding: 20px;
+    padding: 20px 30px; /* Added more horizontal padding */
     border-radius: 8px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
@@ -21,26 +21,36 @@ h1, h2 {
     border-bottom: 2px solid #4ecdc4;
     padding-bottom: 5px;
     margin-top: 0;
+    margin-bottom: 15px; /* More space below headings */
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 25px;
 }
 
 .card {
     background-color: #ffffff;
     border: 1px solid #e0e0e0;
     border-radius: 5px;
-    padding: 15px;
+    padding: 20px; /* Increased padding */
     margin-bottom: 20px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .status {
+    text-align: center; /* Center WebSocket status */
     margin-bottom: 20px;
     font-weight: bold;
+    font-size: 0.9em;
 }
 
 #ws-status {
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 0.9em;
+    margin-left: 5px; /* Space it from label */
+    display: inline-block; /* Ensure padding applies correctly */
 }
 
 #ws-status.connected {
@@ -57,26 +67,151 @@ h1, h2 {
 }
 
 .info p, .stats p {
-    margin: 8px 0;
+    margin: 10px 0; /* Increased spacing */
 }
+
+.info strong, .stats strong {
+     display: inline-block;
+     min-width: 120px; /* Align labels */
+     color: #555;
+}
+
 
 .info span, .stats span {
     font-weight: bold;
     color: #ff6b6b; /* Highlight color for values */
-    min-width: 50px;
-    display: inline-block;
+    font-family: 'Courier New', Courier, monospace; /* Monospace for stats */
+    /* Removed min-width here, handled by strong tag above */
+}
+
+/* Tab Styles */
+.tabs {
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 5px;
+    display: flex; /* Use flexbox for alignment */
+    justify-content: center; /* Center tabs */
+}
+
+.tab-button {
+    background-color: transparent;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 1.1em;
+    color: #555;
+    border-bottom: 3px solid transparent;
+    margin: 0 10px; /* Spacing between tabs */
+    transition: color 0.2s ease, border-bottom-color 0.2s ease; /* Smooth transition */
+}
+
+.tab-button.active {
+    color: #1a535c;
+    border-bottom-color: #4ecdc4;
+    font-weight: bold;
+}
+
+.tab-button:hover:not(.active) {
+    color: #000;
+    border-bottom-color: #ccc; /* Subtle hover effect */
+}
+
+/* View Container and Views */
+#view-container {
+    margin-top: 15px;
+}
+
+.view {
+    display: none; /* Hide views by default */
+    animation: fadeIn 0.5s ease-in-out; /* Add fade-in */
+}
+
+.view.active {
+    display: block; /* Show active view */
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+
+/* Log Output Styles */
+.logs {
+     position: relative;
+}
+
+#log-output {
+    background-color: #282c34;
+    color: #abb2bf;
+    padding: 15px;
+    border-radius: 4px;
+    height: 450px; /* Increased height */
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 0.9em;
+    border: 1px solid #444;
+    line-height: 1.4; /* Improve readability */
+}
+
+/* Style different log sources */
+.log-line {
+    display: block; /* Ensure each log is on a new line visually */
+}
+.log-line.stdout {
+    /* Default color is fine */
+}
+.log-line.stderr {
+    color: #ff7b7b;
+}
+.log-line.raw {
+     color: #e5c07b;
+}
+.log-line.status {
+     color: #61afef;
+     font-style: italic;
+}
+.log-line.error {
+     color: #f44336;
+     font-weight: bold;
+}
+
+
+#clear-logs-btn {
+    position: absolute;
+    top: 20px; /* Align with card padding */
+    right: 20px; /* Align with card padding */
+    background-color: #555;
+    color: white;
+    border: none;
+    padding: 3px 8px;
+    font-size: 0.8em;
+    border-radius: 3px;
+    cursor: pointer;
+    z-index: 10; /* Ensure it's above the pre block */
+}
+#clear-logs-btn:hover {
+    background-color: #777;
+}
+
+/* Actions View */
+.actions {
+    text-align: center; /* Center buttons */
 }
 
 .actions button {
     background-color: #4ecdc4;
     color: white;
     border: none;
-    padding: 10px 15px;
+    padding: 12px 20px; /* Slightly larger buttons */
     border-radius: 4px;
     cursor: pointer;
     font-size: 1em;
-    margin-right: 10px;
+    margin: 10px; /* Space out buttons */
     transition: background-color 0.2s ease;
+    min-width: 180px; /* Give buttons similar width */
 }
 
 .actions button:hover:not(:disabled) {
@@ -88,19 +223,23 @@ h1, h2 {
     cursor: not-allowed;
 }
 
-.logs {
+
+/* Status Log Styles */
+.status-log {
     margin-top: 20px;
 }
 
-#log-output {
-    background-color: #282c34; /* Dark background for logs */
-    color: #abb2bf; /* Light text for logs */
+#status-log-output {
+    background-color: #f8f9fa; /* Lighter background */
+    color: #495057;
     padding: 10px;
     border-radius: 4px;
-    height: 150px;
+    height: 180px; /* Slightly taller */
     overflow-y: auto;
-    white-space: pre-wrap; /* Wrap long lines */
-    word-wrap: break-word; /* Break words if needed */
+    white-space: pre-wrap;
+    word-wrap: break-word;
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.9em;
+    border: 1px solid #dee2e6;
+    line-height: 1.5;
 }
