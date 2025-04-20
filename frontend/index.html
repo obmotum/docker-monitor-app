@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Docker Container Monitor</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <!-- New Header Section -->
     <header class="app-header">
@@ -46,7 +48,8 @@
                 <div class="stats card">
                     <h2>Real-time Stats</h2>
                     <p><strong>CPU Usage:</strong> <span id="cpu-usage">--</span> %</p>
-                    <p><strong>Memory Usage:</strong> <span id="mem-usage">--</span> / <span id="mem-limit">--</span> (<span id="mem-percent">--</span> %)</p>
+                    <p><strong>Memory Usage:</strong> <span id="mem-usage">--</span> / <span id="mem-limit">--</span>
+                        (<span id="mem-percent">--</span> %)</p>
                     <p><strong>Network I/O:</strong> <span id="net-io">-- Rx / -- Tx</span></p>
                     <p><strong>Disk I/O:</strong> <span id="disk-io">-- Read / -- Write</span></p>
                 </div>
@@ -54,28 +57,33 @@
 
             <!-- Logs View -->
             <div id="logs-view" class="view">
-                 <div class="logs card">
-                     <h2>Container Logs <button id="clear-logs-btn">Clear</button></h2>
-                     <pre id="log-output"></pre>
-                 </div>
+                <div class="logs card">
+                    <h2>Container Logs <button id="clear-logs-btn">Clear</button></h2>
+                    <pre id="log-output"></pre>
+                </div>
             </div>
 
-             <!-- Actions View -->
-             <div id="actions-view" class="view">
+            <!-- Actions View -->
+            <div id="actions-view" class="view">
                 <div class="actions card">
                     <h2>Actions</h2>
                     <button id="restart-btn" disabled>Restart Container</button>
                     <button id="upgrade-btn" disabled>Upgrade Container (latest)</button>
-                 </div>
-                  <div class="status-log card">
-                     <h2>Status Messages</h2>
-                     <pre id="status-log-output"></pre>
-                 </div>
-             </div>
+                </div>
+                <div class="status-log card">
+                    <h2>Status Messages</h2>
+                    <pre id="status-log-output"></pre>
+                </div>
+            </div>
         </div>
 
     </div> <!-- End .container -->
 
+    <!-- ANSI Up Library via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/ansi_up@6.0.5/ansi_up.min.js"></script>
+
     <script src="script.js"></script>
+
 </body>
+
 </html>

@@ -2,7 +2,8 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    padding: 0; /* Remove default body padding */
+    padding: 0;
+    /* Remove default body padding */
     background-color: #f4f7f6;
     color: #333;
     line-height: 1.6;
@@ -18,7 +19,8 @@ body {
     padding-bottom: 30px;
 }
 
-h2 { /* Keep styling for card headers */
+h2 {
+    /* Keep styling for card headers */
     color: #1a535c;
     border-bottom: 2px solid #4ecdc4;
     padding-bottom: 5px;
@@ -32,7 +34,7 @@ h2 { /* Keep styling for card headers */
     border-radius: 5px;
     padding: 20px;
     margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .status {
@@ -50,54 +52,215 @@ h2 { /* Keep styling for card headers */
     display: inline-block;
 }
 
-#ws-status.connected { background-color: #4caf50; color: white; }
-#ws-status.disconnected { background-color: #f44336; color: white; }
-#ws-status.connecting { background-color: #ff9800; color: white; }
+#ws-status.connected {
+    background-color: #4caf50;
+    color: white;
+}
 
-.info p, .stats p { margin: 10px 0; }
-.info strong, .stats strong { display: inline-block; min-width: 120px; color: #555; }
-.info span, .stats span { font-weight: bold; color: #ff6b6b; font-family: 'Courier New', Courier, monospace; }
+#ws-status.disconnected {
+    background-color: #f44336;
+    color: white;
+}
 
-.tabs { margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px; display: flex; justify-content: center; }
-.tab-button { background-color: transparent; border: none; padding: 10px 15px; cursor: pointer; font-size: 1.1em; color: #555; border-bottom: 3px solid transparent; margin: 0 10px; transition: color 0.2s ease, border-bottom-color 0.2s ease; }
-.tab-button.active { color: #1a535c; border-bottom-color: #4ecdc4; font-weight: bold; }
-.tab-button:hover:not(.active) { color: #000; border-bottom-color: #ccc; }
+#ws-status.connecting {
+    background-color: #ff9800;
+    color: white;
+}
 
-#view-container { margin-top: 15px; }
-.view { display: none; animation: fadeIn 0.5s ease-in-out; }
-.view.active { display: block; }
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.info p,
+.stats p {
+    margin: 10px 0;
+}
 
-.logs { position: relative; }
-#log-output { background-color: #282c34; color: #abb2bf; padding: 15px; border-radius: 4px; height: 450px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: 'Menlo', 'Consolas', 'Courier New', monospace; font-size: 0.9em; border: 1px solid #444; line-height: 1.4; }
-.log-line { display: block; }
-.log-line.stderr { color: #ff7b7b; }
-.log-line.raw { color: #e5c07b; }
-.log-line.status { color: #61afef; font-style: italic; }
-.log-line.error { color: #f44336; font-weight: bold; }
+.info strong,
+.stats strong {
+    display: inline-block;
+    min-width: 120px;
+    color: #555;
+}
 
-#clear-logs-btn { position: absolute; top: 20px; right: 20px; background-color: #555; color: white; border: none; padding: 3px 8px; font-size: 0.8em; border-radius: 3px; cursor: pointer; z-index: 10; }
-#clear-logs-btn:hover { background-color: #777; }
+.info span,
+.stats span {
+    font-weight: bold;
+    color: #ff6b6b;
+    font-family: 'Courier New', Courier, monospace;
+}
 
-.actions { text-align: center; }
-.actions button { background-color: #4ecdc4; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 1em; margin: 10px; transition: background-color 0.2s ease; min-width: 180px; }
-.actions button:hover:not(:disabled) { background-color: #1a535c; }
-.actions button:disabled { background-color: #cccccc; cursor: not-allowed; }
+.tabs {
+    margin-bottom: 20px;
+    border-bottom: 2px solid #e0e0e0;
+    padding-bottom: 5px;
+    display: flex;
+    justify-content: center;
+}
 
-.status-log { margin-top: 20px; }
-#status-log-output { background-color: #f8f9fa; color: #495057; padding: 10px; border-radius: 4px; height: 180px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; border: 1px solid #dee2e6; line-height: 1.5; }
+.tab-button {
+    background-color: transparent;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 1.1em;
+    color: #555;
+    border-bottom: 3px solid transparent;
+    margin: 0 10px;
+    transition: color 0.2s ease, border-bottom-color 0.2s ease;
+}
+
+.tab-button.active {
+    color: #1a535c;
+    border-bottom-color: #4ecdc4;
+    font-weight: bold;
+}
+
+.tab-button:hover:not(.active) {
+    color: #000;
+    border-bottom-color: #ccc;
+}
+
+#view-container {
+    margin-top: 15px;
+}
+
+.view {
+    display: none;
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+.view.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.logs {
+    position: relative;
+}
+
+#log-output {
+    background-color: #282c34;
+    color: #abb2bf;
+    padding: 15px;
+    border-radius: 4px;
+    height: 450px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 0.9em;
+    border: 1px solid #444;
+    line-height: 1.4;
+}
+
+/*
+.log-line {
+    display: block;
+}
+
+.log-line.stderr {
+    color: #ff7b7b;
+}
+
+.log-line.raw {
+    color: #e5c07b;
+}
+
+.log-line.status {
+    color: #61afef;
+    font-style: italic;
+}
+
+.log-line.error {
+    color: #f44336;
+    font-weight: bold;
+}
+*/
+
+#clear-logs-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: #555;
+    color: white;
+    border: none;
+    padding: 3px 8px;
+    font-size: 0.8em;
+    border-radius: 3px;
+    cursor: pointer;
+    z-index: 10;
+}
+
+#clear-logs-btn:hover {
+    background-color: #777;
+}
+
+.actions {
+    text-align: center;
+}
+
+.actions button {
+    background-color: #4ecdc4;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    margin: 10px;
+    transition: background-color 0.2s ease;
+    min-width: 180px;
+}
+
+.actions button:hover:not(:disabled) {
+    background-color: #1a535c;
+}
+
+.actions button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.status-log {
+    margin-top: 20px;
+}
+
+#status-log-output {
+    background-color: #f8f9fa;
+    color: #495057;
+    padding: 10px;
+    border-radius: 4px;
+    height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9em;
+    border: 1px solid #dee2e6;
+    line-height: 1.5;
+}
 
 /* === New Header Styles === */
 .app-header {
-    background-color: #1a535c; /* Darker color from palette */
+    background-color: #1a535c;
+    /* Darker color from palette */
     color: #ffffff;
-    padding: 10px 30px; /* Match container horizontal padding */
+    padding: 10px 30px;
+    /* Match container horizontal padding */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-    margin-bottom: 20px; /* Space below header */
+    margin-bottom: 20px;
+    /* Space below header */
 }
 
 .header-content {
-    max-width: 800px; /* Match container max-width */
+    max-width: 800px;
+    /* Match container max-width */
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
@@ -111,18 +274,23 @@ h2 { /* Keep styling for card headers */
 
 .user-info {
     font-size: 0.9em;
-    display: flex; /* Align items vertically */
+    display: flex;
+    /* Align items vertically */
     align-items: center;
 }
 
 .user-info strong {
-    margin: 0 5px 0 5px; /* Adjusted margin */
-    color: #e0e0e0; /* Lighter color for name */
-    min-width: auto; /* Reset min-width from other strong tags */
+    margin: 0 5px 0 5px;
+    /* Adjusted margin */
+    color: #e0e0e0;
+    /* Lighter color for name */
+    min-width: auto;
+    /* Reset min-width from other strong tags */
 }
 
 #logout-btn {
-    background-color: #ff6b6b; /* Contrasting color */
+    background-color: #ff6b6b;
+    /* Contrasting color */
     color: white;
     border: none;
     padding: 5px 10px;

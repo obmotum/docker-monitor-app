@@ -18,9 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const logOutput = document.getElementById('log-output');
     const statusLogOutput = document.getElementById('status-log-output');
     const clearLogsBtn = document.getElementById('clear-logs-btn');
-    // New Elements
     const userDisplayName = document.getElementById('user-display-name');
     const logoutBtn = document.getElementById('logout-btn');
+
+    // +++ ANSI Up Initialisierung +++
+    const ansi_up = new AnsiUp();
 
     // --- WebSocket and State ---
     let ws = null;
@@ -136,15 +138,38 @@ document.addEventListener('DOMContentLoaded', () => {
         statusLogOutput.appendChild(logEntry);
         statusLogOutput.scrollTop = statusLogOutput.scrollHeight;
     }
+    // Logs messages to the Container Logs area (<pre>), converting ANSI codes
     function logContainerMessage(message, source = 'raw') {
         const shouldScroll = logOutput.scrollHeight - logOutput.clientHeight <= logOutput.scrollTop + 5;
-        const logLine = document.createElement('span');
-        logLine.classList.add('log-line', source);
-        logLine.textContent = message;
-        logOutput.appendChild(logLine);
-        logOutput.appendChild(document.createTextNode('\n'));
-        while (logOutput.childNodes.length > MAX_LOG_LINES * 2) { logOutput.removeChild(logOutput.firstChild); }
-        if (shouldScroll) { logOutput.scrollTop = logOutput.scrollHeight; }
+
+        // Konvertiere die Nachricht mit ANSI-Codes in HTML
+        // Wichtig: escape_for_html sollte aktiviert sein (Standard), um XSS zu verhindern,
+        // falls die Logs vom Container selbst HTML enthalten könnten.
+        const htmlMessage = ansi_up.ansi_to_html(message);
+
+        // Erstelle ein neues Element für die Zeile (span oder div)
+        // Verwende span, da es sich eher wie eine Textzeile verhält
+        const logLineElement = document.createElement('span');
+
+        // Setze den *konvertierten HTML-Inhalt*
+        logLineElement.innerHTML = htmlMessage;
+
+        // Füge optional eine Klasse für die Quelle hinzu (obwohl Farben jetzt von ansi_up kommen)
+        // logLineElement.classList.add('log-line', source); // Kann man entfernen, wenn man keine Extra-Styles braucht
+
+        logOutput.appendChild(logLineElement);
+        logOutput.appendChild(document.createTextNode('\n')); // Sorge für Zeilenumbruch im <pre>
+
+        // Limit log lines DOM nodes for performance
+        // Multipliziere mit 2, da wir jetzt ein Element + TextNode pro Zeile hinzufügen
+        while (logOutput.childNodes.length > MAX_LOG_LINES * 2) {
+            logOutput.removeChild(logOutput.firstChild);
+        }
+
+        // Auto-scroll if it was previously at the bottom
+        if (shouldScroll) {
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
     }
 
     // --- Action Functions ---
