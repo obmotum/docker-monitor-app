@@ -157,14 +157,22 @@ document.addEventListener('DOMContentLoaded', () => {
     logoutBtn.addEventListener('click', () => {
         // ** IMPORTANT: Verify this is the correct public URL for your Authelia instance **
         const autheliaBaseUrl = `https://auth.trkulja.it`;
-        const currentAppUrl = window.location.origin + window.location.pathname;
-        const autheliaLogoutUrl = `${autheliaBaseUrl}/api/logout?targetURL=${encodeURIComponent(currentAppUrl)}`;
 
-        logStatusMessage("Logging out...");
-        // Perform redirect
-        window.location.href = autheliaLogoutUrl;
+        // Define the URL where the user should land *after* a successful logout.
+        // Usually, this is the login page of Authelia itself, or your app's main page
+        // which will then trigger the login flow again if needed.
+        const targetUrlAfterLogout = window.location.href; // Redirect back to the current monitor page
+
+        // Construct the URL to Authelia's root, adding the redirect parameter 'rd'
+        // Authelia will handle the logout internally when it sees an authenticated user
+        // accessing its root path and then redirect to the 'rd' URL.
+        const autheliaLogoutInitiatorUrl = `${autheliaBaseUrl}/?rd=${encodeURIComponent(targetUrlAfterLogout)}`;
+
+        logStatusMessage("Initiating logout...");
+        // Perform redirect to Authelia's root to trigger logout and redirect
+        window.location.href = autheliaLogoutInitiatorUrl;
     });
-
+    
     // --- Event Listeners ---
     restartBtn.addEventListener('click', () => { if (confirm('Are you sure you want to restart the container?')) sendAction('restart'); });
     upgradeBtn.addEventListener('click', () => { if (confirm('Are you sure you want to attempt an upgrade?')) sendAction('upgrade'); });
