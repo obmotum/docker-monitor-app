@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearLogsBtn = document.getElementById('clear-logs-btn');
     const userDisplayName = document.getElementById('user-display-name');
     const logoutBtn = document.getElementById('logout-btn');
+    const appTitleElement = document.querySelector('.app-title');
 
     // +++ ANSI Up Initialisierung +++
     const ansi_up = new AnsiUp();
@@ -66,6 +67,15 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = JSON.parse(event.data);
                 switch (data.type) {
+                    case 'app_config':
+                        console.log("Received app config:", data.title);
+                        // Aktualisiere den Browser-Tab-Titel
+                        document.title = data.title;
+                        // Aktualisiere den sichtbaren Titel im Header
+                        if (appTitleElement) {
+                            appTitleElement.textContent = data.title;
+                        }
+                        break;
                     case 'stats':
                         updateStats(data);
                         break;

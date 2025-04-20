@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 const TARGET_CONTAINER_ID = process.env.TARGET_CONTAINER_ID;
 const FRONTEND_PATH = process.env.FRONTEND_PATH || path.join(__dirname, '../frontend');
 const LOG_TAIL_COUNT = process.env.LOG_TAIL_COUNT || 100; // How many past lines to show initially
+const APP_TITLE = process.env.APP_TITLE || 'Docker Monitor';
 
 if (!TARGET_CONTAINER_ID) {
     console.error("Error: TARGET_CONTAINER_ID environment variable is not set.");
@@ -169,6 +170,13 @@ wss.on('connection', async (ws, request) => {
 
     // Send initial user info along with container info
     async function sendInitialInfo() {
+        if (ws.readyState === WebSocket.OPEN) {
+            safeSend(ws, {
+                type: 'app_config',
+                title: APP_TITLE // Sende den ausgelesenen Titel
+            });
+        }
+
         const container = await getContainer();
         if (!container && ws.readyState === WebSocket.OPEN) {
             safeSend(ws, { type: 'error', message: `Container "${TARGET_CONTAINER_ID}" not found.` });
@@ -327,6 +335,7 @@ app.use(express.static(FRONTEND_PATH));
 // --- Start Server ---
 server.listen(PORT, async () => {
     console.log(`Server started on port ${PORT}`);
+    console.log(`Application Title set to: "${APP_TITLE}"`); // Logge den verwendeten Titel
     await getContainer();
 });
 
