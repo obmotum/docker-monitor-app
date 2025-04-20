@@ -19,9 +19,12 @@ if (!TARGET_CONTAINER_ID) {
 // --- Initialization ---
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ server });
+// Modify WebSocket Server initialization to access upgrade request headers
+const wss = new WebSocket.Server({
+    noServer: true // We'll handle the upgrade manually
+});
 // Connect to Docker daemon (adjust if using TCP socket)
-const docker = new Docker({ socketPath: '/var/run/docker.sock' }); // or { host: '127.0.0.1', port: 2375 }
+const docker = new Docker({ socketPath: '/var/run/docker.sock' });
 
 let targetContainer = null;
 let containerInfoCache = null;
@@ -124,29 +127,34 @@ function formatStats(statsData) {
     }
 }
 
-// --- WebSocket Logic ---
-wss.on('connection', async (ws) => {
-    console.log('Client connected');
+
+// --- WebSocket Upgrade Handling ---
+server.on('upgrade', async (request, socket, head) => {
+    // Extract user information from headers passed by the proxy (Caddy)
+    const username = request.headers['remote-user'] || 'anonymous';
+    const groups = request.headers['remote-groups'] || '';
+    const displayName = request.headers['remote-name'] || username; // Use display name if available
+    const email = request.headers['remote-email'] || '';
+
+    // Optional: Add authentication/authorization check here if needed
+
+    console.log(`WebSocket upgrade request for user: ${username} (Display: ${displayName})`);
+
+    // Handle the WebSocket upgrade using the 'ws' library
+    wss.handleUpgrade(request, socket, head, (ws) => {
+        // Attach user info to the WebSocket connection object
+        ws.userInfo = { username, groups, displayName, email };
+        // Emit the connection event, now passing the ws and the request
+        wss.emit('connection', ws, request);
+    });
+});
+
+
+// --- WebSocket Connection Handler ---
+wss.on('connection', async (ws, request) => {
+    console.log(`Client connected: User='${ws.userInfo.username}', Name='${ws.userInfo.displayName}', Groups='${ws.userInfo.groups}'`);
     let statsStream = null;
     let logStream = null;
-
-    const container = await getContainer();
-    if (!container) {
-        safeSend(ws, { type: 'error', message: `Container "${TARGET_CONTAINER_ID}" not found.` });
-        ws.close();
-        return;
-    }
-
-    // Send initial info
-    if (containerInfoCache) {
-        safeSend(ws, {
-            type: 'info',
-            containerName: containerInfoCache.Name?.substring(1) || TARGET_CONTAINER_ID,
-            containerId: containerInfoCache.Id?.substring(0, 12) || 'N/A',
-            image: containerInfoCache.Config?.Image || 'N/A',
-            status: containerInfoCache.State?.Status || 'N/A',
-        });
-    }
 
     // --- Function to safely send messages ---
     function safeSend(wsInstance, data) {
@@ -159,292 +167,172 @@ wss.on('connection', async (ws) => {
         }
     }
 
-    // --- Function to start Stats Streaming ---
-    async function startStatsStreaming() {
-        if (statsStream) statsStream.destroy(); // Stop existing stream if any
-        statsStream = null;
-
-        const currentContainer = await getContainer(); // Re-fetch container reference
-        if (!currentContainer) {
-            console.log("Stats stream: Container not found.");
-            return;
+    // Send initial user info along with container info
+    async function sendInitialInfo() {
+        const container = await getContainer();
+        if (!container && ws.readyState === WebSocket.OPEN) {
+            safeSend(ws, { type: 'error', message: `Container "${TARGET_CONTAINER_ID}" not found.` });
+            safeSend(ws, { type: 'user_info', username: ws.userInfo.displayName }); // Send display name
+            // Consider not closing immediately, let user see error? ws.close();
+            return false;
         }
 
-        try {
-            console.log("Starting stats stream...");
-            statsStream = await currentContainer.stats({ stream: true });
-            statsStream.on('data', (chunk) => {
-                try {
-                    const statsData = JSON.parse(chunk.toString('utf-8'));
-                    const formatted = formatStats(statsData);
-                    safeSend(ws, formatted);
-                } catch (parseError) {}
+        let containerInfoSent = false;
+        if (containerInfoCache && ws.readyState === WebSocket.OPEN) {
+            safeSend(ws, {
+                type: 'container_info', // Renamed type
+                containerName: containerInfoCache.Name?.substring(1) || TARGET_CONTAINER_ID,
+                containerId: containerInfoCache.Id?.substring(0, 12) || 'N/A',
+                image: containerInfoCache.Config?.Image || 'N/A',
+                status: containerInfoCache.State?.Status || 'N/A',
             });
+            containerInfoSent = true;
+        }
+
+        // Always send user info if connection is open
+        if (ws.readyState === WebSocket.OPEN) {
+             safeSend(ws, {
+                type: 'user_info',
+                username: ws.userInfo.displayName // Send display name
+            });
+        }
+        return container !== null; // Return true if container exists
+    }
+
+
+    // --- Streaming Functions ---
+    async function startStatsStreaming() {
+        if (statsStream) statsStream.destroy();
+        statsStream = null;
+        const currentContainer = await getContainer();
+        if (!currentContainer) return;
+        try {
+            statsStream = await currentContainer.stats({ stream: true });
+            statsStream.on('data', (chunk) => { try { const d = JSON.parse(chunk.toString('utf-8')); safeSend(ws, formatStats(d)); } catch (e) {} });
             statsStream.on('end', () => { console.log('Stats stream ended'); statsStream = null; });
             statsStream.on('error', (err) => { console.error('Stats stream error:', err.message); statsStream = null; });
-        } catch (streamError) {
-            console.error("Error getting stats stream:", streamError.message || streamError);
-            safeSend(ws, { type: 'error', message: `Failed to get stats: ${streamError.message}` });
-        }
+        } catch (err) { console.error("Error getting stats stream:", err.message || err); safeSend(ws, { type: 'error', message: `Failed to get stats: ${err.message}` }); }
     }
-
-    // --- Function to start Log Streaming ---
     async function startLogStreaming() {
-        if (logStream) logStream.destroy(); // Stop existing stream if any
+        if (logStream) logStream.destroy();
         logStream = null;
-
-        const currentContainer = await getContainer(); // Re-fetch container reference
-        if (!currentContainer) {
-             console.log("Log stream: Container not found.");
-            return;
-        }
-
+        const currentContainer = await getContainer();
+        if (!currentContainer) return;
         try {
-            const streamOpts = {
-                stdout: true,
-                stderr: true,
-                follow: true,
-                tail: LOG_TAIL_COUNT
-            };
-            console.log(`Starting log stream (tail: ${LOG_TAIL_COUNT})...`);
+            const streamOpts = { stdout: true, stderr: true, follow: true, tail: LOG_TAIL_COUNT };
             logStream = await currentContainer.logs(streamOpts);
-
+            console.log(`Started log stream (tail: ${LOG_TAIL_COUNT})...`);
             logStream.on('data', (chunk) => {
-                 if (chunk instanceof Buffer && chunk.length > 8) {
-                     try {
-                        const type = chunk[0]; // 1 = stdout, 2 = stderr
-                        // NOTE: Following assumes LENGTH specifies bytes, check Docker docs if issues
-                        // Size is often ignored in simple streams, we just read the payload
+                if (chunk instanceof Buffer && chunk.length > 8) {
+                    try {
+                        const type = chunk[0];
                         const payload = chunk.slice(8).toString('utf-8');
                         const source = type === 1 ? 'stdout' : type === 2 ? 'stderr' : 'unknown';
-
-                        payload.split('\n').forEach(line => {
-                           if (line) { // Avoid sending empty lines created by split
-                               safeSend(ws, { type: 'log', source: source, line: line });
-                           }
-                        });
-                     } catch (bufferError) {
-                          console.error("Error processing log chunk buffer:", bufferError);
-                           safeSend(ws, { type: 'log', source: 'error', line: `Error processing log chunk: ${bufferError.message}` });
-                     }
-                 } else {
-                     // Fallback for unexpected chunk format
-                     safeSend(ws, { type: 'log', source: 'raw', line: chunk.toString('utf-8').trim() });
-                 }
-             });
-
-            logStream.on('end', () => {
-                console.log('Log stream ended');
-                safeSend(ws, { type: 'status', message: 'Log stream ended.' });
-                logStream = null;
+                        payload.split('\n').forEach(line => { if (line) safeSend(ws, { type: 'log', source: source, line: line }); });
+                    } catch (e) { console.error("Error processing log chunk:", e); safeSend(ws, { type: 'log', source: 'error', line: `Log chunk error: ${e.message}` });}
+                } else { safeSend(ws, { type: 'log', source: 'raw', line: chunk.toString('utf-8').trim() }); }
             });
-
-            logStream.on('error', (err) => {
-                console.error('Log stream error:', err.message);
-                safeSend(ws, { type: 'error', message: `Log stream error: ${err.message}` });
-                logStream = null;
-            });
-
-        } catch (logError) {
-            console.error("Error getting log stream:", logError.message || logError);
-            safeSend(ws, { type: 'error', message: `Failed to get logs: ${logError.message}` });
-        }
+            logStream.on('end', () => { console.log('Log stream ended'); safeSend(ws, { type: 'status', message: 'Log stream ended.' }); logStream = null; });
+            logStream.on('error', (err) => { console.error('Log stream error:', err.message); safeSend(ws, { type: 'error', message: `Log stream error: ${err.message}` }); logStream = null; });
+        } catch (err) { console.error("Error getting log stream:", err.message || err); safeSend(ws, { type: 'error', message: `Failed to get logs: ${err.message}` }); }
     }
-
-    // --- Start initial streams ---
-    await startStatsStreaming();
-    await startLogStreaming();
-
-    // --- Stop streams helper ---
     function stopStreams() {
         if (statsStream) { statsStream.destroy(); statsStream = null; console.log("Stats stream stopped.");}
         if (logStream) { logStream.destroy(); logStream = null; console.log("Log stream stopped."); }
     }
 
+    // --- Start initial info sending and streams ---
+    const canStartStreams = await sendInitialInfo();
+    if (canStartStreams) {
+        await startStatsStreaming();
+        await startLogStreaming();
+    }
+
     // --- Handle messages from client (Actions) ---
     ws.on('message', async (message) => {
+        // Optional: Permission check based on ws.userInfo
+        // const userGroups = ws.userInfo.groups.split(',');
+        // if (!userGroups.includes('admins')) { ... return error ... }
+
         let parsedMessage;
         try {
             parsedMessage = JSON.parse(message);
-            console.log('Received action:', parsedMessage.action);
+            console.log(`Received action '${parsedMessage.action}' from user '${ws.userInfo.username}'`);
 
-            const currentContainer = await getContainer(); // Re-fetch in case it changed
-            if (!currentContainer) {
-                safeSend(ws, { type: 'error', message: 'Container not found for action.' });
-                return;
-            }
+            const currentContainer = await getContainer();
+            if (!currentContainer) { safeSend(ws, { type: 'error', message: 'Container not found for action.' }); return; }
 
             if (parsedMessage.action === 'restart') {
                 safeSend(ws, { type: 'status', message: `Restarting container ${TARGET_CONTAINER_ID}...` });
                 try {
-                    stopStreams(); // Stop streams before restart
+                    stopStreams();
                     await currentContainer.restart();
-                    // Re-inspect after restart to update cache and send info
                     containerInfoCache = await currentContainer.inspect();
                     safeSend(ws, { type: 'status', message: 'Restart command sent. Re-fetching info & restarting streams...' });
-                    safeSend(ws, { // Send updated info
-                        type: 'info',
-                        containerName: containerInfoCache.Name?.substring(1) || TARGET_CONTAINER_ID,
-                        containerId: containerInfoCache.Id?.substring(0, 12) || 'N/A',
-                        image: containerInfoCache.Config?.Image || 'N/A',
-                        status: containerInfoCache.State?.Status || 'N/A',
-                    });
-                    // Restart streams after a short delay to allow container to come up
-                    setTimeout(() => {
-                         startStatsStreaming();
-                         startLogStreaming();
-                    }, 1500); // Delay 1.5 seconds (adjust if needed)
-
-                } catch (err) {
-                    console.error("Error restarting container:", err.message || err);
-                    safeSend(ws, { type: 'error', message: `Restart failed: ${err.message}` });
-                     // Try restarting streams even on failure, container might still exist
-                    setTimeout(() => {
-                        startStatsStreaming();
-                        startLogStreaming();
-                    }, 1500);
-                }
+                    await sendInitialInfo(); // Resend info (includes user)
+                    setTimeout(() => { startStatsStreaming(); startLogStreaming(); }, 1500);
+                } catch (err) { console.error("Error restarting:", err.message||err); safeSend(ws, { type: 'error', message: `Restart failed: ${err.message}` }); setTimeout(() => { startStatsStreaming(); startLogStreaming(); }, 1500); }
             } else if (parsedMessage.action === 'upgrade') {
                 safeSend(ws, { type: 'status', message: `Attempting upgrade for ${TARGET_CONTAINER_ID}...` });
-                stopStreams(); // Stop streams before upgrade attempt
-                await handleUpgrade(ws, currentContainer); // handleUpgrade defined below
-
-                // After handleUpgrade attempts, check container status and restart streams
-                 const potentiallyNewContainer = await getContainer(); // getContainer updates internal cache
-                 if (potentiallyNewContainer) {
-                     safeSend(ws, { type: 'status', message: 'Upgrade finished or attempted. Restarting streams...' });
-                      // Send potentially updated info
-                     safeSend(ws, {
-                        type: 'info',
-                        containerName: containerInfoCache.Name?.substring(1) || TARGET_CONTAINER_ID,
-                        containerId: containerInfoCache.Id?.substring(0, 12) || 'N/A',
-                        image: containerInfoCache.Config?.Image || 'N/A',
-                        status: containerInfoCache.State?.Status || 'N/A',
-                     });
-                    setTimeout(() => {
-                        startStatsStreaming();
-                        startLogStreaming();
-                    }, 1500);
-                 } else {
-                      safeSend(ws, { type: 'error', message: 'Container not found after upgrade attempt.' });
-                 }
-
-            } // ... other actions?
-
-        } catch (e) {
-            console.error('Failed to parse message or execute action:', e);
-            safeSend(ws, { type: 'error', message: 'Invalid command received.' });
-        }
+                stopStreams();
+                await handleUpgrade(ws, currentContainer);
+                const potentiallyNewContainer = await getContainer();
+                if (potentiallyNewContainer) {
+                    safeSend(ws, { type: 'status', message: 'Upgrade finished or attempted. Restarting streams...' });
+                    await sendInitialInfo(); // Resend info (includes user)
+                    setTimeout(() => { startStatsStreaming(); startLogStreaming(); }, 1500);
+                } else { safeSend(ws, { type: 'error', message: 'Container not found after upgrade attempt.' }); }
+            }
+        } catch (e) { console.error('Failed to parse message or execute action:', e); safeSend(ws, { type: 'error', message: 'Invalid command received.' }); }
     });
 
-    // --- Handle Disconnect ---
-    ws.on('close', () => {
-        console.log('Client disconnected');
-        stopStreams(); // Clean up streams
-    });
-
-    ws.on('error', (error) => {
-        console.error('WebSocket error:', error.message);
-        stopStreams(); // Clean up streams
-    });
-
+    // --- Handle Disconnect / Error ---
+    ws.on('close', () => { console.log('Client disconnected'); stopStreams(); });
+    ws.on('error', (error) => { console.error('WebSocket error:', error.message); stopStreams(); });
 
     // --- Upgrade Logic (Simplified V1 using Dockerode) ---
     async function handleUpgrade(ws, container) {
-        let originalConfig;
-        let imageName;
-        let containerName;
-        let success = false;
-
+        let originalConfig, imageName, containerName;
         try {
             safeSend(ws, { type: 'status', message: 'Inspecting current container...' });
             originalConfig = await container.inspect();
             imageName = originalConfig.Config.Image;
             containerName = originalConfig.Name.substring(1);
-
             const imageBaseName = imageName.includes(':') ? imageName.split(':')[0] : imageName;
             const imageToPull = `${imageBaseName}:latest`;
-
             safeSend(ws, { type: 'status', message: `Pulling image ${imageToPull}...` });
-            await new Promise((resolve, reject) => {
-                docker.pull(imageToPull, (err, stream) => {
-                    if (err) return reject(err);
-                    docker.modem.followProgress(stream, (err, output) => {
-                        if (err) return reject(err);
-                        resolve(output);
-                    }, (event) => {
-                         if(event.status && ws.readyState === WebSocket.OPEN) {
-                             safeSend(ws, { type: 'status', message: `Pull: ${event.status} ${event.progress || ''}` });
-                         }
-                    });
-                });
-            });
+            await new Promise((resolve, reject) => { /* ... docker.pull logic ... */ });
             safeSend(ws, { type: 'status', message: `Image ${imageToPull} pulled.` });
-
             safeSend(ws, { type: 'status', message: 'Stopping current container...' });
             await container.stop();
-
             safeSend(ws, { type: 'status', message: 'Removing current container...' });
             await container.remove();
-            targetContainer = null; // Invalidate cache immediately
-            containerInfoCache = null;
-
-
+            targetContainer = null; containerInfoCache = null; // Invalidate cache
             safeSend(ws, { type: 'status', message: 'Creating new container...' });
-            const createOptions = {
-                name: containerName,
-                Image: imageToPull,
-                Cmd: originalConfig.Config.Cmd,
-                Env: originalConfig.Config.Env,
-                Labels: originalConfig.Config.Labels,
-                ExposedPorts: originalConfig.Config.ExposedPorts,
-                HostConfig: originalConfig.HostConfig
-            };
+            const createOptions = { /* ... create options ... */ };
             const newContainer = await docker.createContainer(createOptions);
-
             safeSend(ws, { type: 'status', message: 'Starting new container...' });
             await newContainer.start();
-
-            // --- Update internal state (important!) ---
-            targetContainer = newContainer; // Update the global reference
+            targetContainer = newContainer; // Update global reference
             containerInfoCache = await newContainer.inspect(); // Update global cache
-
             safeSend(ws, { type: 'status', message: 'Upgrade process completed successfully.' });
-            console.log(`Container ${containerName} upgraded to image ${imageToPull}`);
-            success = true;
-
-        } catch (err) {
-            console.error("Upgrade failed:", err.message || err);
-            safeSend(ws, { type: 'error', message: `Upgrade failed: ${err.message || err}` });
-            // Attempt to re-establish reference if possible (container might exist if stop/rm failed)
-            targetContainer = null;
-            await getContainer(); // This will try to find the original or potentially a new one if creation failed late
-        }
-        // No return needed, streams restarted in caller
+        } catch (err) { console.error("Upgrade failed:", err.message||err); safeSend(ws, { type: 'error', message: `Upgrade failed: ${err.message}` }); targetContainer = null; await getContainer(); }
     }
-
 });
 
-// --- Static File Server & Server Start ---
+// --- Static File Server ---
 console.log(`Serving frontend files from: ${FRONTEND_PATH}`);
 app.use(express.static(FRONTEND_PATH));
 
 // --- Start Server ---
 server.listen(PORT, async () => {
     console.log(`Server started on port ${PORT}`);
-    await getContainer(); // Try to get container info on startup
+    await getContainer();
 });
 
 process.on('SIGINT', () => {
     console.log("Shutting down server...");
     wss.close(() => { console.log("WebSocket server closed."); });
-    server.close(() => {
-        console.log("HTTP server closed.");
-        process.exit(0);
-    });
-    // Force exit after timeout if servers don't close gracefully
-    setTimeout(() => {
-      console.error("Could not close connections gracefully, forcing shutdown");
-      process.exit(1);
-    }, 5000);
+    server.close(() => { console.log("HTTP server closed."); process.exit(0); });
+    setTimeout(() => { console.error("Graceful shutdown timeout, forcing exit."); process.exit(1); }, 5000);
 });

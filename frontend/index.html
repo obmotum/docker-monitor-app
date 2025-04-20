@@ -7,8 +7,19 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- New Header Section -->
+    <header class="app-header">
+        <div class="header-content">
+            <span class="app-title">Docker Monitor</span>
+            <div class="user-info">
+                Logged in as: <strong id="user-display-name">...</strong>
+                <button id="logout-btn">Logout</button>
+            </div>
+        </div>
+    </header>
+
     <div class="container">
-        <h1>Docker Container Monitor</h1>
+        <!-- Removed H1 Title -->
         <div class="status">
             WebSocket: <span id="ws-status" class="disconnected">Disconnected</span>
         </div>

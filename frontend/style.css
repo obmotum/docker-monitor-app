@@ -1,7 +1,8 @@
+/* === Keep ALL Existing Styles Below This Line === */
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
-    padding: 20px;
+    padding: 0; /* Remove default body padding */
     background-color: #f4f7f6;
     color: #333;
     line-height: 1.6;
@@ -11,35 +12,31 @@ body {
     max-width: 800px;
     margin: 0 auto;
     background-color: #fff;
-    padding: 20px 30px; /* Added more horizontal padding */
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px 30px;
+    /* Removed border-radius and box-shadow if header spans full width */
+    /* Add padding-bottom if needed */
+    padding-bottom: 30px;
 }
 
-h1, h2 {
+h2 { /* Keep styling for card headers */
     color: #1a535c;
     border-bottom: 2px solid #4ecdc4;
     padding-bottom: 5px;
     margin-top: 0;
-    margin-bottom: 15px; /* More space below headings */
-}
-
-h1 {
-    text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 15px;
 }
 
 .card {
     background-color: #ffffff;
     border: 1px solid #e0e0e0;
     border-radius: 5px;
-    padding: 20px; /* Increased padding */
+    padding: 20px;
     margin-bottom: 20px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .status {
-    text-align: center; /* Center WebSocket status */
+    text-align: center;
     margin-bottom: 20px;
     font-weight: bold;
     font-size: 0.9em;
@@ -49,197 +46,93 @@ h1 {
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 0.9em;
-    margin-left: 5px; /* Space it from label */
-    display: inline-block; /* Ensure padding applies correctly */
+    margin-left: 5px;
+    display: inline-block;
 }
 
-#ws-status.connected {
-    background-color: #4caf50;
-    color: white;
-}
-#ws-status.disconnected {
-    background-color: #f44336;
-    color: white;
-}
-#ws-status.connecting {
-    background-color: #ff9800;
-    color: white;
+#ws-status.connected { background-color: #4caf50; color: white; }
+#ws-status.disconnected { background-color: #f44336; color: white; }
+#ws-status.connecting { background-color: #ff9800; color: white; }
+
+.info p, .stats p { margin: 10px 0; }
+.info strong, .stats strong { display: inline-block; min-width: 120px; color: #555; }
+.info span, .stats span { font-weight: bold; color: #ff6b6b; font-family: 'Courier New', Courier, monospace; }
+
+.tabs { margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 5px; display: flex; justify-content: center; }
+.tab-button { background-color: transparent; border: none; padding: 10px 15px; cursor: pointer; font-size: 1.1em; color: #555; border-bottom: 3px solid transparent; margin: 0 10px; transition: color 0.2s ease, border-bottom-color 0.2s ease; }
+.tab-button.active { color: #1a535c; border-bottom-color: #4ecdc4; font-weight: bold; }
+.tab-button:hover:not(.active) { color: #000; border-bottom-color: #ccc; }
+
+#view-container { margin-top: 15px; }
+.view { display: none; animation: fadeIn 0.5s ease-in-out; }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.logs { position: relative; }
+#log-output { background-color: #282c34; color: #abb2bf; padding: 15px; border-radius: 4px; height: 450px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: 'Menlo', 'Consolas', 'Courier New', monospace; font-size: 0.9em; border: 1px solid #444; line-height: 1.4; }
+.log-line { display: block; }
+.log-line.stderr { color: #ff7b7b; }
+.log-line.raw { color: #e5c07b; }
+.log-line.status { color: #61afef; font-style: italic; }
+.log-line.error { color: #f44336; font-weight: bold; }
+
+#clear-logs-btn { position: absolute; top: 20px; right: 20px; background-color: #555; color: white; border: none; padding: 3px 8px; font-size: 0.8em; border-radius: 3px; cursor: pointer; z-index: 10; }
+#clear-logs-btn:hover { background-color: #777; }
+
+.actions { text-align: center; }
+.actions button { background-color: #4ecdc4; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 1em; margin: 10px; transition: background-color 0.2s ease; min-width: 180px; }
+.actions button:hover:not(:disabled) { background-color: #1a535c; }
+.actions button:disabled { background-color: #cccccc; cursor: not-allowed; }
+
+.status-log { margin-top: 20px; }
+#status-log-output { background-color: #f8f9fa; color: #495057; padding: 10px; border-radius: 4px; height: 180px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; border: 1px solid #dee2e6; line-height: 1.5; }
+
+/* === New Header Styles === */
+.app-header {
+    background-color: #1a535c; /* Darker color from palette */
+    color: #ffffff;
+    padding: 10px 30px; /* Match container horizontal padding */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    margin-bottom: 20px; /* Space below header */
 }
 
-.info p, .stats p {
-    margin: 10px 0; /* Increased spacing */
+.header-content {
+    max-width: 800px; /* Match container max-width */
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.info strong, .stats strong {
-     display: inline-block;
-     min-width: 120px; /* Align labels */
-     color: #555;
-}
-
-
-.info span, .stats span {
+.app-title {
+    font-size: 1.4em;
     font-weight: bold;
-    color: #ff6b6b; /* Highlight color for values */
-    font-family: 'Courier New', Courier, monospace; /* Monospace for stats */
-    /* Removed min-width here, handled by strong tag above */
 }
 
-/* Tab Styles */
-.tabs {
-    margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
-    padding-bottom: 5px;
-    display: flex; /* Use flexbox for alignment */
-    justify-content: center; /* Center tabs */
-}
-
-.tab-button {
-    background-color: transparent;
-    border: none;
-    padding: 10px 15px;
-    cursor: pointer;
-    font-size: 1.1em;
-    color: #555;
-    border-bottom: 3px solid transparent;
-    margin: 0 10px; /* Spacing between tabs */
-    transition: color 0.2s ease, border-bottom-color 0.2s ease; /* Smooth transition */
-}
-
-.tab-button.active {
-    color: #1a535c;
-    border-bottom-color: #4ecdc4;
-    font-weight: bold;
-}
-
-.tab-button:hover:not(.active) {
-    color: #000;
-    border-bottom-color: #ccc; /* Subtle hover effect */
-}
-
-/* View Container and Views */
-#view-container {
-    margin-top: 15px;
-}
-
-.view {
-    display: none; /* Hide views by default */
-    animation: fadeIn 0.5s ease-in-out; /* Add fade-in */
-}
-
-.view.active {
-    display: block; /* Show active view */
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-
-/* Log Output Styles */
-.logs {
-     position: relative;
-}
-
-#log-output {
-    background-color: #282c34;
-    color: #abb2bf;
-    padding: 15px;
-    border-radius: 4px;
-    height: 450px; /* Increased height */
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+.user-info {
     font-size: 0.9em;
-    border: 1px solid #444;
-    line-height: 1.4; /* Improve readability */
+    display: flex; /* Align items vertically */
+    align-items: center;
 }
 
-/* Style different log sources */
-.log-line {
-    display: block; /* Ensure each log is on a new line visually */
-}
-.log-line.stdout {
-    /* Default color is fine */
-}
-.log-line.stderr {
-    color: #ff7b7b;
-}
-.log-line.raw {
-     color: #e5c07b;
-}
-.log-line.status {
-     color: #61afef;
-     font-style: italic;
-}
-.log-line.error {
-     color: #f44336;
-     font-weight: bold;
+.user-info strong {
+    margin: 0 5px 0 5px; /* Adjusted margin */
+    color: #e0e0e0; /* Lighter color for name */
+    min-width: auto; /* Reset min-width from other strong tags */
 }
 
-
-#clear-logs-btn {
-    position: absolute;
-    top: 20px; /* Align with card padding */
-    right: 20px; /* Align with card padding */
-    background-color: #555;
+#logout-btn {
+    background-color: #ff6b6b; /* Contrasting color */
     color: white;
     border: none;
-    padding: 3px 8px;
-    font-size: 0.8em;
-    border-radius: 3px;
-    cursor: pointer;
-    z-index: 10; /* Ensure it's above the pre block */
-}
-#clear-logs-btn:hover {
-    background-color: #777;
-}
-
-/* Actions View */
-.actions {
-    text-align: center; /* Center buttons */
-}
-
-.actions button {
-    background-color: #4ecdc4;
-    color: white;
-    border: none;
-    padding: 12px 20px; /* Slightly larger buttons */
+    padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 1em;
-    margin: 10px; /* Space out buttons */
+    font-size: 0.9em;
+    margin-left: 15px;
     transition: background-color 0.2s ease;
-    min-width: 180px; /* Give buttons similar width */
 }
 
-.actions button:hover:not(:disabled) {
-    background-color: #1a535c;
-}
-
-.actions button:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-}
-
-
-/* Status Log Styles */
-.status-log {
-    margin-top: 20px;
-}
-
-#status-log-output {
-    background-color: #f8f9fa; /* Lighter background */
-    color: #495057;
-    padding: 10px;
-    border-radius: 4px;
-    height: 180px; /* Slightly taller */
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.9em;
-    border: 1px solid #dee2e6;
-    line-height: 1.5;
+#logout-btn:hover {
+    background-color: #e05252;
 }
