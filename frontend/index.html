@@ -53,6 +53,11 @@
                     <p><strong>Network I/O:</strong> <span id="net-io">-- Rx / -- Tx</span></p>
                     <p><strong>Disk I/O:</strong> <span id="disk-io">-- Read / -- Write</span></p>
                 </div>
+
+                <div class="chart-container card">
+                    <h2>CPU Usage (Last 5 Minutes)</h2>
+                    <canvas id="cpu-chart"></canvas>
+                </div>
             </div>
 
             <!-- Logs View -->
@@ -79,6 +84,11 @@
 
     </div> <!-- End .container -->
 
+    <!-- Charting Libraries via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
     <!-- ANSI Up Library via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/ansi_up@5.1.0/ansi_up.min.js"></script>
 

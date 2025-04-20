@@ -304,3 +304,12 @@ h2 {
 #logout-btn:hover {
     background-color: #e05252;
 }
+
+.chart-container {
+    margin-top: 25px; /* Etwas Abstand nach oben */
+}
+
+#cpu-chart {
+    max-height: 250px; /* Höhe begrenzen */
+    width: 100%; /* Volle Breite des Containers nutzen */
+}

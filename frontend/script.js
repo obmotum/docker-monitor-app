@@ -21,6 +21,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const userDisplayName = document.getElementById('user-display-name');
     const logoutBtn = document.getElementById('logout-btn');
     const appTitleElement = document.querySelector('.app-title');
+    const cpuChartCanvas = document.getElementById('cpu-chart');
+
+    // --- Chart State ---
+    let cpuChartInstance = null; // Hält die Chart.js Instanz
+    const chartLabels = [];      // Array für Zeitstempel (X-Achse)
+    const chartCpuData = [];     // Array für CPU-Werte (Y-Achse)
+    const CHART_TIME_WINDOW_MS = 5 * 60 * 1000; // 5 Minuten in Millisekunden
 
     // +++ ANSI Up Initialisierung +++
     const ansi_up = new AnsiUp();
@@ -44,6 +51,87 @@ document.addEventListener('DOMContentLoaded', () => {
         views.forEach(view => view.classList.toggle('active', view.id === targetId));
     }
 
+    // --- Chart Initialization Function ---
+    function initCpuChart() {
+        if (!cpuChartCanvas) return; // Canvas nicht gefunden
+
+        // Zerstöre existierendes Chart, falls vorhanden (bei Reconnect)
+        if (cpuChartInstance) {
+            cpuChartInstance.destroy();
+            cpuChartInstance = null;
+            // Arrays leeren
+            chartLabels.length = 0;
+            chartCpuData.length = 0;
+        }
+
+        const ctx = cpuChartCanvas.getContext('2d');
+        cpuChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels, // Verbinde mit unserem Zeitstempel-Array
+                datasets: [{
+                    label: 'CPU Usage (%)',
+                    data: chartCpuData, // Verbinde mit unserem CPU-Daten-Array
+                    borderColor: 'rgb(255, 99, 132)', // Rote Linie
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)', // Leichte Füllung darunter
+                    borderWidth: 1.5,
+                    pointRadius: 0.5, // Kleine Punkte
+                    tension: 0.1 // Leichte Kurvenglättung
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false, // Erlaube dem Chart, die Höhe anzupassen
+                animation: {
+                    duration: 0 // Keine (oder sehr kurze) Animation für Echtzeit-Gefühl
+                },
+                scales: {
+                    x: {
+                        type: 'time', // Zeitachse aktivieren
+                        time: {
+                            unit: 'second', // Zeige Sekunden
+                            tooltipFormat: 'HH:mm:ss', // Format im Tooltip
+                            displayFormats: {
+                                second: 'HH:mm:ss' // Format auf der Achse
+                            }
+                        },
+                        title: {
+                            display: false // Titel nicht nötig, steht über dem Chart
+                        },
+                        ticks: {
+                            maxRotation: 0, // Keine gedrehten Labels
+                            autoSkip: true, // Labels überspringen, wenn zu dicht
+                            maxTicksLimit: 10 // Begrenze Anzahl sichtbarer Ticks
+                        }
+                    },
+                    y: {
+                        beginAtZero: true, // Starte bei 0%
+                        max: 105, // Gehe leicht über 100%, falls es Spitzen gibt
+                        title: {
+                            display: true,
+                            text: '%'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false // Legende nicht nötig bei nur einer Linie
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                interaction: { // Performance-Optimierung
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            }
+        });
+        console.log("CPU Chart initialized.");
+    }
+
     // --- WebSocket Connection Logic ---
     function connectWebSocket() {
         if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; }
@@ -60,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatus('Connected', 'connected');
             logStatusMessage('WebSocket connection established.');
             enableButtons(true);
+            initCpuChart(); // Initialisiere das Chart bei Verbindung
             if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; }
         };
 
@@ -78,6 +167,24 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'stats':
                         updateStats(data);
+
+                        const now = Date.now();
+                        const cpuValue = parseFloat(data.cpuPercent);
+
+                        if (!isNaN(cpuValue) && cpuChartInstance) {
+                            chartLabels.push(now);
+                            chartCpuData.push(cpuValue);
+
+                            // Entferne alte Datenpunkte (älter als 5 Minuten)
+                            while (chartLabels.length > 0 && now - chartLabels[0] > CHART_TIME_WINDOW_MS) {
+                                chartLabels.shift(); // Entferne ältesten Zeitstempel
+                                chartCpuData.shift(); // Entferne ältesten CPU-Wert
+                            }
+
+                            // Aktualisiere das Chart (ohne Animation)
+                            cpuChartInstance.update('none');
+                        }
+
                         break;
                     case 'container_info': // Renamed type
                         updateInfo(data);
@@ -114,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
             enableButtons(false);
             userDisplayName.textContent = '...'; // Reset username on disconnect
             ws = null;
+            logStatusMessage("Chart updates paused due to disconnect.");
             if (!reconnectInterval) {
                 logStatusMessage('Attempting to reconnect in 5 seconds...');
                 reconnectInterval = setInterval(() => { console.log("Attempting reconnect..."); connectWebSocket(); }, 5000);
