@@ -153,24 +153,49 @@ document.addEventListener('DOMContentLoaded', () => {
         else { logStatusMessage('Cannot send action: WebSocket is not connected.', true); }
     }
 
-    // --- Logout Functionality ---
+    // --- Logout Functionality (using POST to /api/logout) ---
     logoutBtn.addEventListener('click', () => {
         // ** IMPORTANT: Verify this is the correct public URL for your Authelia instance **
-        const autheliaBaseUrl = `https://auth.trkulja.it`;
+        const autheliaLogoutUrl = `https://auth.trkulja.it/api/logout`;
 
-        // Define the URL where the user should land *after* a successful logout.
-        // Usually, this is the login page of Authelia itself, or your app's main page
-        // which will then trigger the login flow again if needed.
-        const targetUrlAfterLogout = window.location.href; // Redirect back to the current monitor page
+        // Define where to redirect *after* the POST request is successful
+        const redirectUrlAfterLogout = window.location.href; // Back to the monitor app
 
-        // Construct the URL to Authelia's root, adding the redirect parameter 'rd'
-        // Authelia will handle the logout internally when it sees an authenticated user
-        // accessing its root path and then redirect to the 'rd' URL.
-        const autheliaLogoutInitiatorUrl = `${autheliaBaseUrl}/?rd=${encodeURIComponent(targetUrlAfterLogout)}`;
+        logStatusMessage("Sending logout request...");
 
-        logStatusMessage("Initiating logout...");
-        // Perform redirect to Authelia's root to trigger logout and redirect
-        window.location.href = autheliaLogoutInitiatorUrl;
+        // Send a POST request using fetch
+        fetch(autheliaLogoutUrl, {
+            method: 'POST',
+            // Body is usually not needed for logout
+            // Headers might not be needed if the browser sends cookies automatically
+            // based on the domain settings. Ensure 'credentials: "include"' if needed,
+            // but often the browser handles cookies correctly for the target domain.
+            credentials: 'include' // Ensures cookies are sent even for cross-origin if allowed
+        })
+        .then(response => {
+            if (response.ok) {
+                // Status 200 OK - Logout likely successful server-side
+                logStatusMessage("Logout successful on server. Reloading page...");
+                 // Manually redirect or reload the page. Reloading often triggers
+                 // the login flow again because the cookie should now be invalid/gone.
+                 // Option 1: Simple Reload
+                 window.location.reload();
+
+                 // Option 2: Redirect explicitly (safer if reload causes issues)
+                 // window.location.href = redirectUrlAfterLogout;
+            } else {
+                // Logout failed server-side (e.g., 401 if cookie was already invalid)
+                logStatusMessage(`Logout request failed: ${response.status} ${response.statusText}`, true);
+                // Still try reloading, maybe the cookie is invalid anyway
+                setTimeout(() => { window.location.reload(); }, 1000);
+            }
+        })
+        .catch(error => {
+            logStatusMessage(`Logout network error: ${error}`, true);
+            console.error('Logout fetch error:', error);
+            // Optionally try reloading even on network error
+             setTimeout(() => { window.location.reload(); }, 1000);
+        });
     });
     
     // --- Event Listeners ---
