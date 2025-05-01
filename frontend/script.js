@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabButtons = document.querySelectorAll('.tab-button');
     const views = document.querySelectorAll('.view');
     const logOutput = document.getElementById('log-output');
+    const logSearchInput = document.getElementById('log-search-input'); // Add reference for search input
     const statusLogOutput = document.getElementById('status-log-output');
     const clearLogsBtn = document.getElementById('clear-logs-btn');
     const userDisplayName = document.getElementById('user-display-name');
@@ -24,12 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const cpuChartCanvas = document.getElementById('cpu-chart');
 
     // --- Chart State ---
-    let cpuChartInstance = null; // Hält die Chart.js Instanz
-    const chartLabels = [];      // Array für Zeitstempel (X-Achse)
-    const chartCpuData = [];     // Array für CPU-Werte (Y-Achse)
-    const CHART_TIME_WINDOW_MS = 5 * 60 * 1000; // 5 Minuten in Millisekunden
+    let cpuChartInstance = null; // Holds the Chart.js instance
+    const chartLabels = [];      // Array for timestamps (X-axis)
+    const chartCpuData = [];     // Array for CPU values (Y-axis)
+    const CHART_TIME_WINDOW_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-    // +++ ANSI Up Initialisierung +++
+    // +++ ANSI Up Initialization +++
     const ansi_up = new AnsiUp();
 
     // --- WebSocket and State ---
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_LOG_LINES = 500;
     let reconnectInterval = null;
     let userInfo = { username: '...' }; // Placeholder for user info
+    let currentLogSearchTerm = ''; // Variable to store the current search term
 
     // --- Tab Switching Logic ---
     tabButtons.forEach(button => {
@@ -53,13 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Chart Initialization Function ---
     function initCpuChart() {
-        if (!cpuChartCanvas) return; // Canvas nicht gefunden
+        if (!cpuChartCanvas) return; // Canvas not found
 
-        // Zerstöre existierendes Chart, falls vorhanden (bei Reconnect)
+        // Destroy existing chart if present (on reconnect)
         if (cpuChartInstance) {
             cpuChartInstance.destroy();
             cpuChartInstance = null;
-            // Arrays leeren
+            // Clear arrays
             chartLabels.length = 0;
             chartCpuData.length = 0;
         }
@@ -68,45 +70,45 @@ document.addEventListener('DOMContentLoaded', () => {
         cpuChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: chartLabels, // Verbinde mit unserem Zeitstempel-Array
+                labels: chartLabels, // Link to our timestamp array
                 datasets: [{
                     label: 'CPU Usage (%)',
-                    data: chartCpuData, // Verbinde mit unserem CPU-Daten-Array
-                    borderColor: 'rgb(255, 99, 132)', // Rote Linie
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)', // Leichte Füllung darunter
+                    data: chartCpuData, // Link to our CPU data array
+                    borderColor: 'rgb(255, 99, 132)', // Red line
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)', // Light fill below
                     borderWidth: 1.5,
-                    pointRadius: 0.5, // Kleine Punkte
-                    tension: 0.1 // Leichte Kurvenglättung
+                    pointRadius: 0.5, // Small points
+                    tension: 0.1 // Slight curve smoothing
                 }]
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: false, // Erlaube dem Chart, die Höhe anzupassen
+                maintainAspectRatio: false, // Allow chart to adjust height
                 animation: {
-                    duration: 0 // Keine (oder sehr kurze) Animation für Echtzeit-Gefühl
+                    duration: 0 // No (or very short) animation for real-time feel
                 },
                 scales: {
                     x: {
-                        type: 'time', // Zeitachse aktivieren
+                        type: 'time', // Enable time axis
                         time: {
-                            unit: 'second', // Zeige Sekunden
-                            tooltipFormat: 'HH:mm:ss', // Format im Tooltip
+                            unit: 'second', // Show seconds
+                            tooltipFormat: 'HH:mm:ss', // Format in tooltip
                             displayFormats: {
-                                second: 'HH:mm:ss' // Format auf der Achse
+                                second: 'HH:mm:ss' // Format on axis
                             }
                         },
                         title: {
-                            display: false // Titel nicht nötig, steht über dem Chart
+                            display: false // No title needed, it's above the chart
                         },
                         ticks: {
-                            maxRotation: 0, // Keine gedrehten Labels
-                            autoSkip: true, // Labels überspringen, wenn zu dicht
-                            maxTicksLimit: 10 // Begrenze Anzahl sichtbarer Ticks
+                            maxRotation: 0, // No rotated labels
+                            autoSkip: true, // Skip labels if too dense
+                            maxTicksLimit: 10 // Limit number of visible ticks
                         }
                     },
                     y: {
-                        beginAtZero: true, // Starte bei 0%
-                        max: 105, // Gehe leicht über 100%, falls es Spitzen gibt
+                        beginAtZero: true, // Start at 0%
+                        max: 105, // Go slightly above 100% for spikes
                         title: {
                             display: true,
                             text: '%'
@@ -115,14 +117,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 plugins: {
                     legend: {
-                        display: false // Legende nicht nötig bei nur einer Linie
+                        display: false // No legend needed for single line
                     },
                     tooltip: {
                         mode: 'index',
                         intersect: false
                     }
                 },
-                interaction: { // Performance-Optimierung
+                interaction: { // Performance optimization
                     mode: 'nearest',
                     axis: 'x',
                     intersect: false
@@ -148,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatus('Connected', 'connected');
             logStatusMessage('WebSocket connection established.');
             enableButtons(true);
-            initCpuChart(); // Initialisiere das Chart bei Verbindung
+            initCpuChart(); // Initialize the chart on connection
             if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; }
         };
 
@@ -158,9 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 switch (data.type) {
                     case 'app_config':
                         console.log("Received app config:", data.title);
-                        // Aktualisiere den Browser-Tab-Titel
+                        // Update the browser tab title
                         document.title = data.title;
-                        // Aktualisiere den sichtbaren Titel im Header
+                        // Update the visible title in the header
                         if (appTitleElement) {
                             appTitleElement.textContent = data.title;
                         }
@@ -175,13 +177,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             chartLabels.push(now);
                             chartCpuData.push(cpuValue);
 
-                            // Entferne alte Datenpunkte (älter als 5 Minuten)
+                            // Remove old data points (older than 5 minutes)
                             while (chartLabels.length > 0 && now - chartLabels[0] > CHART_TIME_WINDOW_MS) {
-                                chartLabels.shift(); // Entferne ältesten Zeitstempel
-                                chartCpuData.shift(); // Entferne ältesten CPU-Wert
+                                chartLabels.shift(); // Remove oldest timestamp
+                                chartCpuData.shift(); // Remove oldest CPU value
                             }
 
-                            // Aktualisiere das Chart (ohne Animation)
+                            // Update the chart (without animation)
                             cpuChartInstance.update('none');
                         }
 
@@ -260,26 +262,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function logContainerMessage(message, source = 'raw') {
         const shouldScroll = logOutput.scrollHeight - logOutput.clientHeight <= logOutput.scrollTop + 5;
 
-        // Konvertiere die Nachricht mit ANSI-Codes in HTML
-        // Wichtig: escape_for_html sollte aktiviert sein (Standard), um XSS zu verhindern,
-        // falls die Logs vom Container selbst HTML enthalten könnten.
+        // Convert the message with ANSI codes to HTML
+        // Important: escape_for_html should be enabled (default) to prevent XSS
+        // in case the logs from the container contain HTML themselves.
         const htmlMessage = ansi_up.ansi_to_html(message);
 
-        // Erstelle ein neues Element für die Zeile (span oder div)
-        // Verwende span, da es sich eher wie eine Textzeile verhält
+        // Create a new element for the line (span or div)
+        // Use span, as it behaves more like a text line
         const logLineElement = document.createElement('span');
 
-        // Setze den *konvertierten HTML-Inhalt*
+        // Set the *converted HTML content*
         logLineElement.innerHTML = htmlMessage;
 
-        // Füge optional eine Klasse für die Quelle hinzu (obwohl Farben jetzt von ansi_up kommen)
-        // logLineElement.classList.add('log-line', source); // Kann man entfernen, wenn man keine Extra-Styles braucht
+        // Optionally add a class for the source (though colors now come from ansi_up)
+        // logLineElement.classList.add('log-line', source); // Can be removed if no extra styles needed
 
         logOutput.appendChild(logLineElement);
-        logOutput.appendChild(document.createTextNode('\n')); // Sorge für Zeilenumbruch im <pre>
+        logOutput.appendChild(document.createTextNode('\n')); // Ensure line break in <pre>
 
         // Limit log lines DOM nodes for performance
-        // Multipliziere mit 2, da wir jetzt ein Element + TextNode pro Zeile hinzufügen
+        // Multiply by 2, since we now add an element + TextNode per line
         while (logOutput.childNodes.length > MAX_LOG_LINES * 2) {
             logOutput.removeChild(logOutput.firstChild);
         }
@@ -288,6 +290,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if (shouldScroll) {
             logOutput.scrollTop = logOutput.scrollHeight;
         }
+    }
+
+    // --- Log Filtering Logic ---
+    function filterLogs() {
+        currentLogSearchTerm = logSearchInput.value.toLowerCase();
+        const logLines = logOutput.querySelectorAll('span'); // Get all log line elements
+
+        logLines.forEach(line => {
+            const lineText = line.textContent.toLowerCase(); // Use textContent for filtering existing lines
+            if (currentLogSearchTerm && !lineText.includes(currentLogSearchTerm)) {
+                line.style.display = 'none'; // Hide if it doesn't match
+            } else {
+                line.style.display = ''; // Show if it matches or if search is empty
+            }
+        });
+
+        // Scroll to bottom after filtering if the user was already there
+        // (Optional, might be slightly annoying if user was scrolled up intentionally)
+        // logOutput.scrollTop = logOutput.scrollHeight;
     }
 
     // --- Action Functions ---
@@ -344,7 +365,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Listeners ---
     restartBtn.addEventListener('click', () => { if (confirm('Are you sure you want to restart the container?')) sendAction('restart'); });
     upgradeBtn.addEventListener('click', () => { if (confirm('Are you sure you want to attempt an upgrade?')) sendAction('upgrade'); });
-    clearLogsBtn.addEventListener('click', () => { logOutput.innerHTML = ''; logContainerMessage('[Logs Cleared by User]', 'status'); });
+    clearLogsBtn.addEventListener('click', () => {
+        logOutput.innerHTML = '';
+        logContainerMessage('[Logs Cleared by User]', 'status');
+        // Re-apply filter in case search term exists but logs were cleared
+        filterLogs();
+    });
+    logSearchInput.addEventListener('input', filterLogs); // Add event listener for search input
 
     // --- Initial setup ---
     switchTab('info-stats-view');
