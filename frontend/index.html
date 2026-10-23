@@ -9,19 +9,20 @@
 </head>
 
 <body>
-    <!-- New Header Section -->
     <header class="app-header">
         <div class="header-content">
             <span class="app-title">Docker Monitor</span>
             <div class="user-info">
                 Logged in as: <strong id="user-display-name">...</strong>
-                <button id="logout-btn">Logout</button>
+                <!-- POST: ends the local session and the Keycloak SSO session -->
+                <form method="post" action="/auth/logout">
+                    <button id="logout-btn" type="submit">Logout</button>
+                </form>
             </div>
         </div>
     </header>
 
     <div class="container">
-        <!-- Removed H1 Title -->
         <div class="status">
             WebSocket: <span id="ws-status" class="disconnected">Disconnected</span>
         </div>
@@ -43,6 +44,12 @@
                     <p><strong>ID:</strong> <span id="container-id">N/A</span></p>
                     <p><strong>Image:</strong> <span id="container-image">N/A</span></p>
                     <p><strong>Status:</strong> <span id="container-status">N/A</span></p>
+                    <!-- Shown once a PlayFab/crossplay join code was found in the container logs -->
+                    <p id="join-code-row" hidden>
+                        <strong>Join-Code:</strong> <span id="join-code" class="join-code">-</span>
+                        <button id="copy-join-code-btn" type="button" title="Copy join code">Copy</button>
+                        <small id="join-address" class="join-address"></small>
+                    </p>
                 </div>
 
                 <div class="stats card">
@@ -55,20 +62,50 @@
                 </div>
 
                 <div class="chart-container card">
-                    <h2>CPU Usage (Last 5 Minutes)</h2>
-                    <canvas id="cpu-chart"></canvas>
+                    <h2>CPU &amp; RAM History</h2>
+                    <div class="history-toolbar">
+                        <div class="history-presets" role="group" aria-label="Zeitraum">
+                            <button type="button" data-range="3600000">1 h</button>
+                            <button type="button" data-range="21600000">6 h</button>
+                            <button type="button" data-range="86400000">24 h</button>
+                            <button type="button" data-range="604800000">7 d</button>
+                        </div>
+                        <label class="history-live"><input type="checkbox" id="history-live" checked> Live</label>
+                    </div>
+                    <div class="history-chart-wrap"><canvas id="history-chart"></canvas></div>
+
+                    <!-- Overview of the whole stored period with a draggable selection (start/end handles + pan) -->
+                    <div class="history-overview">
+                        <canvas id="history-overview-chart"></canvas>
+                        <div class="range-slider" id="range-slider">
+                            <div class="range-selection" id="range-selection" title="Ziehen zum Verschieben"></div>
+                            <input type="range" id="range-start" aria-label="Startzeitpunkt" min="0" max="1000" value="900">
+                            <input type="range" id="range-end" aria-label="Endzeitpunkt" min="0" max="1000" value="1000">
+                        </div>
+                    </div>
+                    <div class="history-label">
+                        <span id="history-range-label">–</span>
+                        <span id="history-summary" class="history-summary"></span>
+                    </div>
                 </div>
             </div>
 
             <!-- Logs View -->
             <div id="logs-view" class="view">
                 <div class="logs card">
-                    <h2>Container Logs <button id="clear-logs-btn">Clear</button></h2>
-                    <!-- Add search input here -->
+                    <h2>Container Logs</h2>
                     <div class="log-controls">
-                        <input type="text" id="log-search-input" placeholder="Search logs...">
+                        <input type="search" id="log-search-input" placeholder="Search logs..." aria-label="Search logs">
+                        <label for="log-tail-select">History:</label>
+                        <select id="log-tail-select">
+                            <option value="100">Last 100 lines</option>
+                            <option value="500">Last 500 lines</option>
+                            <option value="1000">Last 1000 lines</option>
+                            <option value="start">Since container start</option>
+                        </select>
                     </div>
                     <pre id="log-output"></pre>
+                    <button id="jump-latest-btn" type="button" hidden>↓ Neueste</button>
                 </div>
             </div>
 
@@ -77,7 +114,7 @@
                 <div class="actions card">
                     <h2>Actions</h2>
                     <button id="restart-btn" disabled>Restart Container</button>
-                    <button id="upgrade-btn" disabled>Upgrade Container (latest)</button>
+                    <p class="hint">Updates are handled by the container itself (lloesche/valheim-server <code>UPDATE_CRON</code>).</p>
                 </div>
                 <div class="status-log card">
                     <h2>Status Messages</h2>
@@ -88,15 +125,12 @@
 
     </div> <!-- End .container -->
 
-    <!-- Charting Libraries via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    
-    <!-- ANSI Up Library via CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/ansi_up@5.1.0/ansi_up.min.js"></script>
+    <!-- Charting libraries, served locally (copied from npm packages at image build time) -->
+    <script src="vendor/chart.umd.min.js"></script>
+    <script src="vendor/chartjs-adapter-date-fns.bundle.min.js"></script>
 
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
+    <script type="module" src="history.js"></script>
 
 </body>
 

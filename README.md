@@ -1,148 +1,88 @@
 # Docker Real-Time Monitor
 
-A simple, modern-looking web application to monitor a *single* running Docker container's stats and logs in real-time using WebSockets. It also provides basic controls to restart or upgrade the monitored container.
+A small web application to monitor a *single* Docker container's stats and logs in real time over WebSockets, with a restart button. Login is handled **natively via OpenID Connect** (e.g. Keycloak) – no auth proxy required – and access can be restricted to members of one group.
 
 ## Features
 
-*   **Real-time Stats:** Displays CPU Usage (%), Memory Usage / Limit (MB/GB), Memory Usage (%), Network I/O (Rx/Tx), and Disk I/O (Read/Write).
-*   **Real-time Logs:** Streams the container's `stdout` and `stderr` to a dedicated console view.
-*   **Container Info:** Shows the monitored container's Name, ID (short), Image, and current Status.
-*   **Basic Controls:**
-    *   **Restart:** Restarts the monitored container.
-    *   **Upgrade:** Pulls the `latest` tag of the container's image and recreates the container with the same configuration (experimental, see limitations).
-*   **WebSockets:** Uses WebSockets for efficient real-time communication between the backend and frontend.
-*   **Simple UI:** Clean, tabbed interface for easy navigation between Stats, Logs, and Actions.
-*   **Status Indicators:** Shows WebSocket connection status and provides status messages for actions.
+*   **Real-time Stats:** CPU (%), memory usage / limit, network I/O, disk I/O, plus a 5-minute CPU chart.
+*   **Real-time Logs:** Streams the container's `stdout`/`stderr` (ANSI colours supported).
+*   **Container Info:** Name, short ID, image and status.
+*   **Restart:** Restarts the monitored container.
+*   **Native OIDC login:** Authorization Code Flow with PKCE (`openid-client`), server-side sessions, RP-initiated logout (also ends the Keycloak SSO session).
+*   **Group-based access:** Only users whose `groups` claim contains `OIDC_REQUIRED_GROUP` get in; everyone else sees a 403 page. The WebSocket is authenticated with the same session.
 
 ## Tech Stack
 
-*   **Backend:**
-    *   Node.js
-    *   Express (for serving static files)
-    *   `ws` (for WebSocket server)
-    *   `dockerode` (Node.js client for the Docker Engine API)
-*   **Frontend:**
-    *   HTML5
-    *   CSS3
-    *   Vanilla JavaScript (ES6+)
-    *   Browser WebSocket API
-*   **Runtime:** Docker / Docker Compose (for running the monitor app itself)
+*   **Backend:** Node.js 24 (ESM), Express 5, `ws`, `dockerode`, `openid-client` 6, `express-session`, `helmet`
+*   **Frontend:** Vanilla JS, Chart.js, ansi_up – all served locally (no CDN)
+*   **Runtime:** Docker Compose, with [`tecnativa/docker-socket-proxy`](https://github.com/Tecnativa/docker-socket-proxy) in front of the Docker socket
 
-## Prerequisites
+## Architecture
 
-*   **Node.js:** Version 16.x or higher (for local development/running).
-*   **npm** or **yarn:** Package manager for Node.js.
-*   **Docker Engine:** Must be installed and running on the host where the backend service will execute.
-*   **Docker Socket Access:** The backend process (or its container) needs read/write access to the Docker daemon socket (usually `/var/run/docker.sock`).
-*   **A Running Target Container:** You need at least one Docker container running that you want to monitor.
+```
+Browser ──HTTPS──> Traefik ──> docker-monitor (OIDC + session) ──tcp──> socket-proxy ──ro──> /var/run/docker.sock
+                                     │
+                                     └── OIDC ──> Keycloak (login.trkulja.it)
+```
 
-## Setup and Installation
+The app never sees the Docker socket directly. The socket proxy only allows reading containers, logs and stats plus `stop`/`restart`/`kill` – no create, delete, exec or image pulls.
 
-You can run this application either directly using Node.js or via Docker (recommended).
+## Keycloak setup
 
-### Option 1: Running Locally (for development)
-
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repo-url> docker-monitor-app
-    cd docker-monitor-app
-    ```
-2.  **Install backend dependencies:**
-    ```bash
-    cd backend
-    npm install
-    cd ..
-    ```
-3.  **Set Environment Variable:** Specify the container to monitor.
-    ```bash
-    # Linux/macOS
-    export TARGET_CONTAINER_ID="your_container_name_or_id"
-
-    # Windows (Command Prompt)
-    set TARGET_CONTAINER_ID="your_container_name_or_id"
-
-    # Windows (PowerShell)
-    $env:TARGET_CONTAINER_ID="your_container_name_or_id"
-    ```
-    Replace `your_container_name_or_id` with the actual name or ID.
-4.  **Start the backend server:**
-    ```bash
-    cd backend
-    npm start
-    ```
-5.  **Access the application:** Open your browser to `http://localhost:3000`.
-
-### Option 2: Running with Docker (Recommended)
-
-This repository includes a `Dockerfile` and `docker-compose.yml` to easily run the monitor application itself as a container.
-
-1.  **Clone the repository:**
-    ```bash
-    git clone <your-repo-url> docker-monitor-app
-    cd docker-monitor-app
-    ```
-2.  **Configure `docker-compose.yml`:**
-    *   Open the `docker-compose.yml` file in the project root.
-    *   In the `services.docker-monitor.environment` section, **change the value** of `TARGET_CONTAINER_ID` to the name or ID of the container you want to monitor.
-    ```yaml
-    services:
-      docker-monitor:
-        # ... other settings
-        environment:
-          # REQUIRED: Set the ID or name of the container you want to monitor
-          - TARGET_CONTAINER_ID=your_container_name_or_id # <<< CHANGE THIS
-          # - PORT=3000 # Optional: change port
-        # ... other settings
-    ```
-3.  **Build and Run the Container:**
-    ```bash
-    docker-compose up --build -d
-    ```
-    *   Use `docker compose up --build -d` if you are using Docker Compose V2.
-4.  **Access the application:** Open your browser to `http://<your-server-ip>:3000` (use `localhost` if running Docker locally).
+1.  **Client** (`Clients → Create client`):
+    *   Client type `OpenID Connect`, Client ID `valheim-monitor`
+    *   Client authentication **On** (confidential), Standard flow **On**, everything else off
+    *   Valid redirect URIs: `https://monitor.vh.trkulja.it/auth/callback`
+    *   Valid post logout redirect URIs: `https://monitor.vh.trkulja.it/`
+    *   Web origins: `https://monitor.vh.trkulja.it`
+    *   Advanced → PKCE method `S256` (optional, the app always sends PKCE)
+2.  **Groups claim:** Client → Client scopes → add `groups` as *Default*. If the realm has no `groups` scope, create a mapper *Group Membership* with token claim name `groups`, **Full group path off**, *Add to ID token* on.
+3.  **Group:** create `valheim-monitoring` and add the users who should have access.
 
 ## Configuration
 
-The backend server can be configured using environment variables:
+| Variable | Required | Description |
+|:--|:--|:--|
+| `TARGET_CONTAINER` | ✅ | Name (preferred) or ID of the container to monitor. `TARGET_CONTAINER_ID` still works. |
+| `APP_BASE_URL` | ✅ | Public URL, e.g. `https://monitor.vh.trkulja.it` (used for the redirect URI and the WebSocket origin check). |
+| `OIDC_ISSUER` | ✅ | e.g. `https://login.trkulja.it/realms/trkulja.it` |
+| `OIDC_CLIENT_ID` | ✅ | e.g. `valheim-monitor` |
+| `OIDC_CLIENT_SECRET` | ✅ | From the client's *Credentials* tab – put it in `.env`. |
+| `SESSION_SECRET` | ✅ | Random, ≥ 32 characters (`openssl rand -hex 32`) – put it in `.env`. |
+| `OIDC_REQUIRED_GROUP` | | Default `valheim-monitoring`. A leading `/` (full group path) is ignored. |
+| `OIDC_SCOPES` | | Default `openid profile email groups` |
+| `SESSION_MAX_AGE_HOURS` | | Default `8`. Open WebSockets are closed when the session expires. |
+| `DOCKER_HOST` | | Default: local socket. In Compose: `tcp://socket-proxy:2375` |
+| `APP_TITLE`, `LOG_TAIL_COUNT`, `PORT` | | Title, initial log lines (100), port (3000) |
 
-*   **`TARGET_CONTAINER_ID`** ( **Required** ): The name or unique ID of the Docker container to monitor and control.
-*   **`PORT`** (Optional): The port on which the web server will listen. Defaults to `3000`.
-*   **`LOG_TAIL_COUNT`** (Optional): The number of recent log lines to fetch initially when connecting. Defaults to `100`.
-*   **`FRONTEND_PATH`** (Optional): Path to the frontend files (mainly for internal use/debugging). Defaults to `../frontend`.
+Secrets go into `.env` (see `.env.example`, `chmod 600`). Values containing `$` or `#` must be wrapped in single quotes.
 
-When running via Docker Compose, set these under the `environment` key in the `docker-compose.yml` file.
+## Deployment
 
-## Usage
+```bash
+cp .env.example .env && chmod 600 .env   # fill in OIDC_CLIENT_SECRET and SESSION_SECRET
+docker compose up -d --build
+docker compose logs -f docker-monitor
+```
 
-1.  Navigate to the application URL (e.g., `http://localhost:3000`).
-2.  The application will attempt to connect to the backend via WebSocket. The status is shown at the top.
-3.  Use the tabs to navigate:
-    *   **Info & Stats:** Displays container details and live resource usage statistics.
-    *   **Console Logs:** Shows a live stream of the container's `stdout` and `stderr`. Use the "Clear" button to empty the view.
-    *   **Actions:** Contains buttons for restarting or upgrading the container, and displays status messages from the backend.
-4.  Click the "Restart" or "Upgrade" buttons to perform actions. Confirm the action in the popup. Status updates will appear in the "Status Messages" log area.
+Traefik routes `monitor.vh.trkulja.it` to the app (labels in `compose.yml`). The old `sso-auth` forward-auth middleware is no longer used.
 
-## Security Considerations
+## Local development
 
-⚠️ **IMPORTANT:** This application provides direct control over parts of your Docker environment.
+```bash
+cd backend
+npm install
+# Vendor files are normally copied at image build time:
+mkdir -p ../frontend/vendor
+cp node_modules/chart.js/dist/chart.umd.min.js node_modules/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js node_modules/ansi_up/ansi_up.js ../frontend/vendor/
+# Set the variables from the table above, then:
+npm run dev
+```
 
-1.  **Docker Socket Access:** The backend requires access to `/var/run/docker.sock`. Mounting this socket into a container (as done in the provided `docker-compose.yml`) grants that container **root-equivalent privileges** on the host system. Anyone who can access this web application can potentially trigger actions on the host via the monitored container.
-2.  **No Authentication:** This basic version **does not include any authentication or authorization**. Anyone who can reach the web server port can view stats/logs and trigger restart/upgrade actions.
-3.  **Exposure:** **DO NOT expose this application directly to the internet without putting a robust authentication and authorization layer in front of it.**
-    *   **Recommendation:** Use a reverse proxy (like Nginx, Traefik, Caddy) configured with an authentication provider (like Authelia, OAuth2 Proxy, LDAP, or even simple HTTP Basic Auth) to protect access.
+The Keycloak client needs `http://localhost:3000/auth/callback` as an additional redirect URI for local testing.
 
-## Limitations & Future Enhancements
+## Security notes
 
-*   **Single Container Only:** Designed to monitor only one container specified at startup.
-*   **Basic Upgrade:** The "Upgrade" function simply pulls the `:latest` tag of the image and recreates the container. It doesn't handle specific version tags, rollbacks, or complex configuration preservation beyond what `dockerode`'s `inspect` provides. Using Docker Compose for the *target* application is often more reliable for upgrades.
-*   No historical stats or charting.
-*   Limited error handling in the UI for complex Docker issues.
-
-Potential future enhancements include:
-
-*   Support for monitoring multiple containers (e.g., selection dropdown).
-*   Built-in user authentication/authorization.
-*   More sophisticated upgrade procedures.
-*   Graphical charts for statistics over time.
-*   Configuration persistence or UI-based configuration.
-*   Integration with Docker Compose commands for actions.
+*   The socket proxy limits the Docker API, but log output and container metadata of the target are still visible to every authorized user.
+*   Sessions are kept in memory: a container restart logs everybody out (they are sent through the Keycloak login again, usually without re-entering credentials).
+*   The former "Upgrade" action was removed – it stopped and deleted the target container without being able to recreate it. Let the target update itself (e.g. `UPDATE_CRON` in `lloesche/valheim-server`) or use Compose.

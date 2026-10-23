@@ -10,7 +10,7 @@ body {
 }
 
 .container {
-    max-width: 800px;
+    max-width: 1040px;
     margin: 0 auto;
     background-color: #fff;
     padding: 20px 30px;
@@ -183,22 +183,70 @@ h2 {
 }
 */
 
-#clear-logs-btn {
+#jump-latest-btn {
+    position: absolute;
+    right: 40px;
+    bottom: 34px;
+    background-color: #4ecdc4;
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 14px;
+    cursor: pointer;
+    font-size: 0.85em;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+#jump-latest-btn[hidden] {
+    display: none;
+}
+
+#jump-latest-btn:hover {
+    background-color: #1a535c;
+}
+
+.log-controls {
     position: absolute;
     top: 20px;
     right: 20px;
-    background-color: #555;
-    color: white;
-    border: none;
-    padding: 3px 8px;
-    font-size: 0.8em;
-    border-radius: 3px;
-    cursor: pointer;
-    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85em;
+    color: #555;
 }
 
-#clear-logs-btn:hover {
-    background-color: #777;
+#log-search-input {
+    padding: 2px 6px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1em;
+    width: 180px;
+}
+
+#log-output .log-line[hidden] {
+    display: none;
+}
+
+/* Narrow screens: controls below the heading instead of overlapping it */
+@media (max-width: 760px) {
+    .log-controls {
+        position: static;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    #log-search-input {
+        flex: 1 1 100%;
+        width: auto;
+    }
+}
+
+#log-tail-select {
+    padding: 2px 4px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1em;
 }
 
 .actions {
@@ -259,7 +307,7 @@ h2 {
 }
 
 .header-content {
-    max-width: 800px;
+    max-width: 1040px;
     /* Match container max-width */
     margin: 0 auto;
     display: flex;
@@ -309,7 +357,234 @@ h2 {
     margin-top: 25px; /* Etwas Abstand nach oben */
 }
 
-#cpu-chart {
-    max-height: 250px; /* Höhe begrenzen */
-    width: 100%; /* Volle Breite des Containers nutzen */
+/* === CPU & RAM history === */
+.history-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 10px;
+    flex-wrap: wrap;
 }
+
+.history-presets button {
+    background: #f1f3f4;
+    border: 1px solid #d0d7d9;
+    color: #1a535c;
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+    margin-right: 4px;
+}
+
+.history-presets button:hover {
+    background: #4ecdc4;
+    color: white;
+    border-color: #4ecdc4;
+}
+
+.history-live {
+    font-size: 0.85em;
+    color: #555;
+    cursor: pointer;
+}
+
+.history-chart-wrap {
+    position: relative;
+    height: 280px;
+}
+
+.history-overview {
+    position: relative;
+    height: 70px;
+    margin-top: 14px;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    background: #fafbfb;
+    user-select: none; /* dragging must not select surrounding text */
+}
+
+/* Slider covers the plot area of the overview (x-axis labels stay visible below) */
+.range-slider {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 48px;
+}
+
+.range-selection {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(78, 205, 196, 0.25);
+    border-left: 2px solid #1a535c;
+    border-right: 2px solid #1a535c;
+    cursor: grab;
+    touch-action: none;
+}
+
+.range-selection.dragging {
+    cursor: grabbing;
+    background: rgba(78, 205, 196, 0.4);
+}
+
+/* Two overlapping range inputs: only the thumbs receive pointer events */
+.range-slider input[type="range"] {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    top: 0;
+    height: 48px;
+    margin: 0;
+    background: transparent;
+    pointer-events: none;
+    -webkit-appearance: none;
+    appearance: none;
+    z-index: 2;
+}
+
+.range-slider input[type="range"]::-webkit-slider-runnable-track {
+    background: transparent;
+    height: 48px;
+}
+
+.range-slider input[type="range"]::-moz-range-track {
+    background: transparent;
+    height: 48px;
+}
+
+.range-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 12px;
+    height: 48px;
+    border-radius: 3px;
+    background: #1a535c;
+    cursor: ew-resize;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+.range-slider input[type="range"]::-moz-range-thumb {
+    pointer-events: auto;
+    width: 12px;
+    height: 48px;
+    border: none;
+    border-radius: 3px;
+    background: #1a535c;
+    cursor: ew-resize;
+}
+
+.history-label {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 0.85em;
+    color: #555;
+}
+
+.history-summary {
+    font-family: 'Courier New', Courier, monospace;
+    color: #1a535c;
+}
+
+.user-info form {
+    margin: 0;
+}
+
+.info .join-code {
+    font-size: 1.3em;
+    letter-spacing: 0.1em;
+    color: #1a535c;
+}
+
+.info .join-address {
+    color: #777;
+    margin-left: 8px;
+}
+
+#copy-join-code-btn {
+    background-color: #4ecdc4;
+    color: white;
+    border: none;
+    padding: 3px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+#copy-join-code-btn:hover {
+    background-color: #1a535c;
+}
+
+.actions .hint {
+    color: #777;
+    font-size: 0.85em;
+}
+
+/* === Login / 403 page === */
+.auth-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.auth-card {
+    max-width: 420px;
+    text-align: center;
+}
+
+.auth-card button {
+    background-color: #ff6b6b;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* === Log highlighting for lines without own ANSI colours === */
+#log-output .log-prefix { color: #5c6370; }
+#log-output .log-error { color: #e06c75; }
+#log-output .log-warn { color: #e5c07b; }
+#log-output .log-ok { color: #98c379; }
+#log-output .log-joincode {
+    color: #ffffff;
+    background-color: rgba(78, 205, 196, 0.25);
+    border-left: 3px solid #4ecdc4;
+    padding-left: 4px;
+    display: inline-block;
+    width: calc(100% - 7px);
+}
+#log-output .log-joincode-value {
+    color: #4ecdc4;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+}
+
+/* === ansi_up colour classes (use_classes = true) === */
+.ansi-black-fg { color: #5c6370; }
+.ansi-red-fg { color: #e06c75; }
+.ansi-green-fg { color: #98c379; }
+.ansi-yellow-fg { color: #e5c07b; }
+.ansi-blue-fg { color: #61afef; }
+.ansi-magenta-fg { color: #c678dd; }
+.ansi-cyan-fg { color: #56b6c2; }
+.ansi-white-fg { color: #dcdfe4; }
+.ansi-bright-black-fg { color: #7f848e; }
+.ansi-bright-red-fg { color: #ff7b85; }
+.ansi-bright-green-fg { color: #b5e890; }
+.ansi-bright-yellow-fg { color: #ffd68a; }
+.ansi-bright-blue-fg { color: #82c4ff; }
+.ansi-bright-magenta-fg { color: #de9bf0; }
+.ansi-bright-cyan-fg { color: #7fd4de; }
+.ansi-bright-white-fg { color: #ffffff; }
+.ansi-bold { font-weight: bold; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
