@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logOutput = document.getElementById('log-output');
     const statusLogOutput = document.getElementById('status-log-output');
     const logTailSelect = document.getElementById('log-tail-select');
+    const logSearchInput = document.getElementById('log-search-input');
     const userDisplayName = document.getElementById('user-display-name');
     const appTitleElement = document.querySelector('.app-title');
     // +++ ANSI Up Initialisierung +++
@@ -246,20 +247,21 @@ document.addEventListener('DOMContentLoaded', () => {
         // Erstelle ein neues Element für die Zeile (span oder div)
         // Verwende span, da es sich eher wie eine Textzeile verhält
         const logLineElement = document.createElement('span');
-        if (lineClass) logLineElement.className = lineClass;
+        logLineElement.className = lineClass ? `log-line ${lineClass}` : 'log-line';
 
         // Setze den *konvertierten HTML-Inhalt*
         logLineElement.innerHTML = htmlMessage;
+        if (!lineMatchesSearch(logLineElement.textContent)) logLineElement.hidden = true; // match visible text, not ANSI codes
 
         // Füge optional eine Klasse für die Quelle hinzu (obwohl Farben jetzt von ansi_up kommen)
         // logLineElement.classList.add('log-line', source); // Kann man entfernen, wenn man keine Extra-Styles braucht
 
+        // The line break lives inside the line element, so hidden (filtered) lines leave no empty rows
+        logLineElement.appendChild(document.createTextNode('\n'));
         logOutput.appendChild(logLineElement);
-        logOutput.appendChild(document.createTextNode('\n')); // Sorge für Zeilenumbruch im <pre>
 
-        // Limit log lines DOM nodes for performance
-        // Multipliziere mit 2, da wir jetzt ein Element + TextNode pro Zeile hinzufügen
-        while (logOutput.childNodes.length > maxLogLines * 2) {
+        // Limit log lines DOM nodes for performance (one element per line)
+        while (logOutput.childNodes.length > maxLogLines) {
             logOutput.removeChild(logOutput.firstChild);
         }
 
@@ -277,6 +279,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     restartBtn.addEventListener('click', () => { if (confirm('Are you sure you want to restart the container?')) sendAction('restart'); });
+    // --- Log search (from main, adapted): hides non-matching lines, also for lines arriving later ---
+    let logSearchTerm = '';
+    function lineMatchesSearch(text) {
+        return !logSearchTerm || text.toLowerCase().includes(logSearchTerm);
+    }
+    let searchTimer = null;
+    logSearchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            logSearchTerm = logSearchInput.value.trim().toLowerCase();
+            for (const line of logOutput.children) {
+                line.hidden = !lineMatchesSearch(line.textContent);
+            }
+            scrollLogsToBottom();
+        }, 150);
+    });
+
     logTailSelect.addEventListener('change', () => {
         try { localStorage.setItem(LOG_TAIL_KEY, logTailSelect.value); } catch { /* storage unavailable */ }
         sendAction('set_log_tail', { tail: logTailSelect.value });

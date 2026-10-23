@@ -216,6 +216,32 @@ h2 {
     color: #555;
 }
 
+#log-search-input {
+    padding: 2px 6px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 1em;
+    width: 180px;
+}
+
+#log-output .log-line[hidden] {
+    display: none;
+}
+
+/* Narrow screens: controls below the heading instead of overlapping it */
+@media (max-width: 760px) {
+    .log-controls {
+        position: static;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    #log-search-input {
+        flex: 1 1 100%;
+        width: auto;
+    }
+}
+
 #log-tail-select {
     padding: 2px 4px;
     border: 1px solid #ccc;
