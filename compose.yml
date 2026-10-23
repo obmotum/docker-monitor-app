@@ -1,15 +1,51 @@
 services:
+  # Restricted Docker API: read containers/logs/stats + restart only. No create/delete/exec.
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: docker_monitor_socket_proxy
+    environment:
+      - CONTAINERS=1
+      - ALLOW_RESTARTS=1
+      - POST=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - socket
+    restart: unless-stopped
+
   docker-monitor:
     build: .
+    image: docker-monitor-app:2.0.0
     container_name: docker_monitor_service
+    depends_on:
+      - socket-proxy
+    # Reachable only via NetBird: the Traefik entry node on oracle (proxy2.trkulja.it) routes
+    # monitor.vh.trkulja.it here (oracle: ~/stacks/traefik/data/dynamic/valheim-monitor.yml).
     ports:
-      - "3000:3000" # Map host port 3000 to container port 3000
-    environment:
-      # REQUIRED: Set the ID or name of the container you want to monitor
-      - TARGET_CONTAINER_ID=cf2426ac8873
-      - APP_TITLE=Valheim Server Monitor
+      - "100.75.0.39:3010:3000"  # 3000 on the NetBird IP is taken by ntopng
+    networks:
+      - default  # outbound access to Keycloak
+      - socket
     volumes:
-      # Mount the Docker socket from the host into the container
-      # WARNING: This grants the container significant control over Docker on the host!
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/app/data  # CPU/RAM history (SQLite, 7 days); must be writable by uid 1000
+    env_file:
+      - .env  # OIDC_CLIENT_SECRET, SESSION_SECRET (see .env.example)
+    environment:
+      - DOCKER_HOST=tcp://socket-proxy:2375
+      # Name of the container to monitor (survives re-creation, unlike an ID)
+      - TARGET_CONTAINER=valheim
+      - APP_TITLE=Valheim Server Monitor
+      - APP_BASE_URL=https://monitor.vh.trkulja.it
+      - OIDC_ISSUER=https://login.trkulja.it/realms/trkulja.it
+      - OIDC_CLIENT_ID=valheim-monitor
+      - OIDC_REQUIRED_GROUP=valheim-monitoring
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     restart: unless-stopped
+
+networks:
+  socket:
+    internal: true

@@ -1,44 +1,48 @@
-# Use an official Node.js runtime as a parent image
-FROM node:slim AS builder
+# --- Build stage: install dependencies and collect frontend vendor files ---
+FROM node:24.22.1-slim AS builder
 
-# Set the working directory in the container
 WORKDIR /app/backend
 
-# Copy package.json and package-lock.json (if available)
-COPY backend/package*.json ./
+# Full install (incl. devDependencies) so the frontend libraries can be copied out
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 
-# Install app dependencies needed for backend runtime
-# Using --omit=dev to skip devDependencies like nodemon in final image
-RUN npm install --omit=dev
-
-# Copy the rest of the backend application code
-COPY backend/ ./
-
-# --- Frontend Stage (simply copy files) ---
+# Frontend libraries are served locally instead of from a CDN
 WORKDIR /app
 COPY frontend/ ./frontend/
+RUN mkdir -p frontend/vendor \
+ && cp backend/node_modules/chart.js/dist/chart.umd.min.js frontend/vendor/ \
+ && cp backend/node_modules/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js frontend/vendor/ \
+ && cp backend/node_modules/ansi_up/ansi_up.js frontend/vendor/
+
+# Runtime dependencies only
+WORKDIR /app/backend
+RUN npm prune --omit=dev
+COPY backend/*.js ./
 
 
 # --- Final image ---
-FROM node:slim
+FROM node:24.22.1-slim
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    FRONTEND_PATH=/app/frontend \
+    METRICS_DB_PATH=/app/data/metrics.db
 
 WORKDIR /app
+COPY --from=builder --chown=node:node /app/backend ./backend
+COPY --from=builder --chown=node:node /app/frontend ./frontend
+# CPU/RAM history (SQLite) – mount a volume here
+RUN mkdir -p /app/data && chown node:node /app/data
+VOLUME /app/data
 
-# Copy built backend from builder stage (including node_modules)
-COPY --from=builder /app/backend ./backend
+# Docker access goes through docker-socket-proxy (DOCKER_HOST), so no root / socket group needed
+USER node
 
-# Copy frontend files
-COPY --from=builder /app/frontend ./frontend
-
-
-# Make port 3000 available to the world outside this container
 EXPOSE 3000
 
-# Define environment variables (can be overridden at runtime)
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV FRONTEND_PATH=/app/frontend
-# TARGET_CONTAINER_ID needs to be set at runtime
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/healthz').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Run server.js when the container launches
-CMD ["node", "backend/server.js"]
+# node:sqlite is stable enough for this use but still flagged experimental in Node 24
+CMD ["node", "--disable-warning=ExperimentalWarning", "backend/server.js"]

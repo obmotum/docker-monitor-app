@@ -1,3 +1,5 @@
+import { AnsiUp } from './vendor/ansi_up.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- Element References ---
     const wsStatus = document.getElementById('ws-status');
@@ -11,30 +13,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const memPercent = document.getElementById('mem-percent');
     const netIo = document.getElementById('net-io');
     const diskIo = document.getElementById('disk-io');
+    const joinCodeRow = document.getElementById('join-code-row');
+    const joinCode = document.getElementById('join-code');
+    const joinAddress = document.getElementById('join-address');
+    const copyJoinCodeBtn = document.getElementById('copy-join-code-btn');
     const restartBtn = document.getElementById('restart-btn');
-    const upgradeBtn = document.getElementById('upgrade-btn');
     const tabButtons = document.querySelectorAll('.tab-button');
     const views = document.querySelectorAll('.view');
     const logOutput = document.getElementById('log-output');
     const statusLogOutput = document.getElementById('status-log-output');
-    const clearLogsBtn = document.getElementById('clear-logs-btn');
+    const logTailSelect = document.getElementById('log-tail-select');
     const userDisplayName = document.getElementById('user-display-name');
-    const logoutBtn = document.getElementById('logout-btn');
     const appTitleElement = document.querySelector('.app-title');
-    const cpuChartCanvas = document.getElementById('cpu-chart');
-
-    // --- Chart State ---
-    let cpuChartInstance = null; // Hält die Chart.js Instanz
-    const chartLabels = [];      // Array für Zeitstempel (X-Achse)
-    const chartCpuData = [];     // Array für CPU-Werte (Y-Achse)
-    const CHART_TIME_WINDOW_MS = 5 * 60 * 1000; // 5 Minuten in Millisekunden
-
     // +++ ANSI Up Initialisierung +++
     const ansi_up = new AnsiUp();
+    ansi_up.use_classes = true; // Basic colours as CSS classes instead of inline styles (CSP)
 
     // --- WebSocket and State ---
     let ws = null;
-    const MAX_LOG_LINES = 500;
+    let maxLogLines = 500; // raised to the selected history size on 'log_reset'
+
+    // Remember the chosen log history per browser (convenience only; falls back to 100).
+    const LOG_TAIL_KEY = 'vhmon.logTail';
+    try {
+        const saved = localStorage.getItem(LOG_TAIL_KEY);
+        if (saved && [...logTailSelect.options].some(o => o.value === saved)) logTailSelect.value = saved;
+    } catch { /* storage unavailable */ }
     let reconnectInterval = null;
     let userInfo = { username: '...' }; // Placeholder for user info
 
@@ -46,90 +50,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- Log auto-scroll ---
+    // Follow the newest line unless the user scrolled up to read; "↓ Neueste" jumps back and resumes.
+    const jumpLatestBtn = document.getElementById('jump-latest-btn');
+    let followLogs = true;
+    let scrollPending = false;
+    function scrollLogsToBottom() {
+        if (scrollPending) return;
+        scrollPending = true;
+        requestAnimationFrame(() => { // one scroll per frame, even for bursts of lines
+            scrollPending = false;
+            if (followLogs) logOutput.scrollTop = logOutput.scrollHeight;
+        });
+    }
+    logOutput.addEventListener('scroll', () => {
+        if (!logOutput.clientHeight) return; // hidden tab
+        followLogs = logOutput.scrollHeight - logOutput.clientHeight - logOutput.scrollTop <= 10;
+        jumpLatestBtn.hidden = followLogs;
+    });
+    jumpLatestBtn.addEventListener('click', () => {
+        followLogs = true;
+        jumpLatestBtn.hidden = true;
+        scrollLogsToBottom();
+    });
+
     function switchTab(targetId) {
         tabButtons.forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-target') === targetId));
         views.forEach(view => view.classList.toggle('active', view.id === targetId));
-    }
-
-    // --- Chart Initialization Function ---
-    function initCpuChart() {
-        if (!cpuChartCanvas) return; // Canvas nicht gefunden
-
-        // Zerstöre existierendes Chart, falls vorhanden (bei Reconnect)
-        if (cpuChartInstance) {
-            cpuChartInstance.destroy();
-            cpuChartInstance = null;
-            // Arrays leeren
-            chartLabels.length = 0;
-            chartCpuData.length = 0;
-        }
-
-        const ctx = cpuChartCanvas.getContext('2d');
-        cpuChartInstance = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: chartLabels, // Verbinde mit unserem Zeitstempel-Array
-                datasets: [{
-                    label: 'CPU Usage (%)',
-                    data: chartCpuData, // Verbinde mit unserem CPU-Daten-Array
-                    borderColor: 'rgb(255, 99, 132)', // Rote Linie
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)', // Leichte Füllung darunter
-                    borderWidth: 1.5,
-                    pointRadius: 0.5, // Kleine Punkte
-                    tension: 0.1 // Leichte Kurvenglättung
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false, // Erlaube dem Chart, die Höhe anzupassen
-                animation: {
-                    duration: 0 // Keine (oder sehr kurze) Animation für Echtzeit-Gefühl
-                },
-                scales: {
-                    x: {
-                        type: 'time', // Zeitachse aktivieren
-                        time: {
-                            unit: 'second', // Zeige Sekunden
-                            tooltipFormat: 'HH:mm:ss', // Format im Tooltip
-                            displayFormats: {
-                                second: 'HH:mm:ss' // Format auf der Achse
-                            }
-                        },
-                        title: {
-                            display: false // Titel nicht nötig, steht über dem Chart
-                        },
-                        ticks: {
-                            maxRotation: 0, // Keine gedrehten Labels
-                            autoSkip: true, // Labels überspringen, wenn zu dicht
-                            maxTicksLimit: 10 // Begrenze Anzahl sichtbarer Ticks
-                        }
-                    },
-                    y: {
-                        beginAtZero: true, // Starte bei 0%
-                        max: 105, // Gehe leicht über 100%, falls es Spitzen gibt
-                        title: {
-                            display: true,
-                            text: '%'
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false // Legende nicht nötig bei nur einer Linie
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    }
-                },
-                interaction: { // Performance-Optimierung
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                }
-            }
-        });
-        console.log("CPU Chart initialized.");
+        if (targetId === 'logs-view') scrollLogsToBottom(); // layout exists only once the tab is visible
     }
 
     // --- WebSocket Connection Logic ---
@@ -138,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) { return; }
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${wsProtocol}//${window.location.host}`;
+        const wsUrl = `${wsProtocol}//${window.location.host}/?logs=${encodeURIComponent(logTailSelect.value)}`;
         ws = new WebSocket(wsUrl);
 
         updateStatus('Connecting...', 'connecting');
@@ -148,7 +96,6 @@ document.addEventListener('DOMContentLoaded', () => {
             updateStatus('Connected', 'connected');
             logStatusMessage('WebSocket connection established.');
             enableButtons(true);
-            initCpuChart(); // Initialisiere das Chart bei Verbindung
             if (reconnectInterval) { clearInterval(reconnectInterval); reconnectInterval = null; }
         };
 
@@ -168,26 +115,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'stats':
                         updateStats(data);
 
-                        const now = Date.now();
-                        const cpuValue = parseFloat(data.cpuPercent);
-
-                        if (!isNaN(cpuValue) && cpuChartInstance) {
-                            chartLabels.push(now);
-                            chartCpuData.push(cpuValue);
-
-                            // Entferne alte Datenpunkte (älter als 5 Minuten)
-                            while (chartLabels.length > 0 && now - chartLabels[0] > CHART_TIME_WINDOW_MS) {
-                                chartLabels.shift(); // Entferne ältesten Zeitstempel
-                                chartCpuData.shift(); // Entferne ältesten CPU-Wert
-                            }
-
-                            // Aktualisiere das Chart (ohne Animation)
-                            cpuChartInstance.update('none');
-                        }
-
                         break;
                     case 'container_info': // Renamed type
                         updateInfo(data);
+                        break;
+                    case 'join_info':
+                        updateJoinInfo(data);
                         break;
                     case 'user_info': // Handle new user info type
                         userInfo.username = data.username || 'anonymous';
@@ -196,6 +129,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         break;
                     case 'log':
                         logContainerMessage(data.line, data.source);
+                        break;
+                    case 'log_reset': // server (re)starts the log stream with the chosen history
+                        maxLogLines = Math.max(500, Number(data.limit) || 500);
+                        logOutput.innerHTML = '';
+                        followLogs = true;
+                        jumpLatestBtn.hidden = true;
                         break;
                     case 'status':
                         logStatusMessage(`Status: ${data.message}`);
@@ -221,12 +160,26 @@ document.addEventListener('DOMContentLoaded', () => {
             enableButtons(false);
             userDisplayName.textContent = '...'; // Reset username on disconnect
             ws = null;
-            logStatusMessage("Chart updates paused due to disconnect.");
-            if (!reconnectInterval) {
-                logStatusMessage('Attempting to reconnect in 5 seconds...');
-                reconnectInterval = setInterval(() => { console.log("Attempting reconnect..."); connectWebSocket(); }, 5000);
-            }
+            // 4001 = session expired on the server; otherwise check whether we are still logged in.
+            if (event.code === 4001) { window.location.reload(); return; }
+            checkSession().then((loggedIn) => {
+                if (!loggedIn) { window.location.reload(); return; } // Reload -> server redirects to the Keycloak login
+                if (!reconnectInterval) {
+                    logStatusMessage('Attempting to reconnect in 5 seconds...');
+                    reconnectInterval = setInterval(() => { console.log("Attempting reconnect..."); connectWebSocket(); }, 5000);
+                }
+            });
         };
+    }
+
+    // Returns false only if the server explicitly says the session is gone (401/403); network errors count as logged in.
+    async function checkSession() {
+        try {
+            const res = await fetch('/api/me', { headers: { Accept: 'application/json' }, cache: 'no-store' });
+            return !(res.status === 401 || res.status === 403);
+        } catch {
+            return true;
+        }
     }
 
     // --- UI Update Functions ---
@@ -237,6 +190,11 @@ document.addEventListener('DOMContentLoaded', () => {
         containerImage.textContent = data.image || 'N/A';
         containerStatus.textContent = data.status || 'N/A';
     }
+    function updateJoinInfo(data) {
+        joinCodeRow.hidden = !data.code;
+        joinCode.textContent = data.code || '-';
+        joinAddress.textContent = data.address ? `(${data.address})` : '';
+    }
     function updateStats(data) {
         cpuUsage.textContent = data.cpuPercent || '--';
         memUsage.textContent = data.memUsage || '--';
@@ -245,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         netIo.textContent = `${data.netRx || '--'} Rx / ${data.netTx || '--'} Tx`;
         diskIo.textContent = `${data.diskRead || '--'} Read / ${data.diskWrite || '--'} Write`;
     }
-    function enableButtons(enabled) { restartBtn.disabled = !enabled; upgradeBtn.disabled = !enabled; }
+    function enableButtons(enabled) { restartBtn.disabled = !enabled; }
 
     // --- Logging Functions ---
     function logStatusMessage(message, isError = false) {
@@ -258,16 +216,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Logs messages to the Container Logs area (<pre>), converting ANSI codes
     function logContainerMessage(message, source = 'raw') {
-        const shouldScroll = logOutput.scrollHeight - logOutput.clientHeight <= logOutput.scrollTop + 5;
-
         // Konvertiere die Nachricht mit ANSI-Codes in HTML
         // Wichtig: escape_for_html sollte aktiviert sein (Standard), um XSS zu verhindern,
         // falls die Logs vom Container selbst HTML enthalten könnten.
-        const htmlMessage = ansi_up.ansi_to_html(message);
+        // supervisord/syslog (e.g. lloesche/valheim-server) prints ESC in caret notation ("^[[0m");
+        // turn it back into a real ESC so ansi_up recognises the colour codes.
+        const text = message.replace(/\^\[\[/g, '\x1b[');
+        let htmlMessage = ansi_up.ansi_to_html(text);
+
+        // Light highlighting for lines without own colours (Valheim/SteamCMD only emit resets).
+        const hasOwnColours = /\x1b\[[0-9;]*[1-9][0-9;]*m/.test(text);
+        if (!hasOwnColours) {
+            // Dim the "Oct 23 13:00:12 supervisord: valheim-server" / "10/23/2026 13:00:12:" prefixes
+            htmlMessage = htmlMessage.replace(/^(\w{3} +\d+ [\d:]+ supervisord: [\w-]+)/, '<span class="log-prefix">$1</span>');
+            htmlMessage = htmlMessage.replace(/(\d{2}\/\d{2}\/\d{4} [\d:]+:)/, '<span class="log-prefix">$1</span>');
+        }
+        let lineClass = '';
+        // PlayFab/crossplay join code lines get their own highlight (same patterns as the backend parser)
+        const joinCodeMatch = /(?:registered with|with) join code (\d+)/.exec(text);
+        if (joinCodeMatch) {
+            lineClass = 'log-joincode';
+            htmlMessage = htmlMessage.replace(`join code ${joinCodeMatch[1]}`, `join code <span class="log-joincode-value">${joinCodeMatch[1]}</span>`);
+        } else if (!hasOwnColours) {
+            if (source === 'stderr' || /\b(error|exception|failed|fatal)\b/i.test(text)) lineClass = 'log-error';
+            else if (/\bwarn(ing)?\b/i.test(text)) lineClass = 'log-warn';
+            else if (/\b(success|connected)\b/i.test(text)) lineClass = 'log-ok';
+        }
 
         // Erstelle ein neues Element für die Zeile (span oder div)
         // Verwende span, da es sich eher wie eine Textzeile verhält
         const logLineElement = document.createElement('span');
+        if (lineClass) logLineElement.className = lineClass;
 
         // Setze den *konvertierten HTML-Inhalt*
         logLineElement.innerHTML = htmlMessage;
@@ -280,71 +259,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Limit log lines DOM nodes for performance
         // Multipliziere mit 2, da wir jetzt ein Element + TextNode pro Zeile hinzufügen
-        while (logOutput.childNodes.length > MAX_LOG_LINES * 2) {
+        while (logOutput.childNodes.length > maxLogLines * 2) {
             logOutput.removeChild(logOutput.firstChild);
         }
 
         // Auto-scroll if it was previously at the bottom
-        if (shouldScroll) {
-            logOutput.scrollTop = logOutput.scrollHeight;
-        }
+        if (followLogs) scrollLogsToBottom();
     }
 
     // --- Action Functions ---
-    function sendAction(action) {
-        if (ws && ws.readyState === WebSocket.OPEN) { logStatusMessage(`Sending action: ${action}`); ws.send(JSON.stringify({ action: action })); }
+    function sendAction(action, payload = {}) {
+        if (ws && ws.readyState === WebSocket.OPEN) { logStatusMessage(`Sending action: ${action}`); ws.send(JSON.stringify({ action, ...payload })); }
         else { logStatusMessage('Cannot send action: WebSocket is not connected.', true); }
     }
 
-    // --- Logout Functionality (using POST to /api/logout) ---
-    logoutBtn.addEventListener('click', () => {
-        // ** IMPORTANT: Verify this is the correct public URL for your Authelia instance **
-        const autheliaLogoutUrl = `https://auth.trkulja.it/api/logout`;
+    // Logout is a plain form POST to /auth/logout (see index.html), which also ends the Keycloak session.
 
-        // Define where to redirect *after* the POST request is successful
-        const redirectUrlAfterLogout = window.location.href; // Back to the monitor app
-
-        logStatusMessage("Sending logout request...");
-
-        // Send a POST request using fetch
-        fetch(autheliaLogoutUrl, {
-            method: 'POST',
-            // Body is usually not needed for logout
-            // Headers might not be needed if the browser sends cookies automatically
-            // based on the domain settings. Ensure 'credentials: "include"' if needed,
-            // but often the browser handles cookies correctly for the target domain.
-            credentials: 'include' // Ensures cookies are sent even for cross-origin if allowed
-        })
-        .then(response => {
-            if (response.ok) {
-                // Status 200 OK - Logout likely successful server-side
-                logStatusMessage("Logout successful on server. Reloading page...");
-                 // Manually redirect or reload the page. Reloading often triggers
-                 // the login flow again because the cookie should now be invalid/gone.
-                 // Option 1: Simple Reload
-                 window.location.reload();
-
-                 // Option 2: Redirect explicitly (safer if reload causes issues)
-                 // window.location.href = redirectUrlAfterLogout;
-            } else {
-                // Logout failed server-side (e.g., 401 if cookie was already invalid)
-                logStatusMessage(`Logout request failed: ${response.status} ${response.statusText}`, true);
-                // Still try reloading, maybe the cookie is invalid anyway
-                setTimeout(() => { window.location.reload(); }, 1000);
-            }
-        })
-        .catch(error => {
-            logStatusMessage(`Logout network error: ${error}`, true);
-            console.error('Logout fetch error:', error);
-            // Optionally try reloading even on network error
-             setTimeout(() => { window.location.reload(); }, 1000);
-        });
-    });
-    
     // --- Event Listeners ---
     restartBtn.addEventListener('click', () => { if (confirm('Are you sure you want to restart the container?')) sendAction('restart'); });
-    upgradeBtn.addEventListener('click', () => { if (confirm('Are you sure you want to attempt an upgrade?')) sendAction('upgrade'); });
-    clearLogsBtn.addEventListener('click', () => { logOutput.innerHTML = ''; logContainerMessage('[Logs Cleared by User]', 'status'); });
+    logTailSelect.addEventListener('change', () => {
+        try { localStorage.setItem(LOG_TAIL_KEY, logTailSelect.value); } catch { /* storage unavailable */ }
+        sendAction('set_log_tail', { tail: logTailSelect.value });
+    });
+    copyJoinCodeBtn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(joinCode.textContent);
+            copyJoinCodeBtn.textContent = 'Copied!';
+        } catch {
+            copyJoinCodeBtn.textContent = 'Copy failed';
+        }
+        setTimeout(() => { copyJoinCodeBtn.textContent = 'Copy'; }, 1500);
+    });
 
     // --- Initial setup ---
     switchTab('info-stats-view');
